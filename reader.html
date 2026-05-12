@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AI Agent 面试资料库文章阅读器：支持目录、代码块、Mermaid 架构图、配图与引用"
+    />
+    <title>AI Agent Interview Atlas · Reader</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./reader.css" />
+  </head>
+  <body>
+    <header class="reader-topbar">
+      <a class="reader-brand" href="./index.html">
+        <span class="brand-mark">AI</span>
+        <span>
+          <strong>Agent Interview Atlas</strong>
+          <small>Article Reader</small>
+        </span>
+      </a>
+      <nav class="reader-nav" aria-label="阅读导航">
+        <a href="./index.html#library">长文库</a>
+        <a href="./index.html#map">知识地图</a>
+        <a href="./index.html#drills">追问演练</a>
+      </nav>
+    </header>
+
+    <main class="reader-shell">
+      <aside class="article-rail" aria-label="文章列表">
+        <p class="rail-label">Library</p>
+        <div id="articleRail"></div>
+      </aside>
+
+      <article class="article-frame">
+        <header class="article-hero" id="articleHero">
+          <div class="hero-placeholder"></div>
+        </header>
+        <div class="article-layout">
+          <nav class="toc" id="toc" aria-label="文章目录">
+            <p>目录</p>
+            <div id="tocList"></div>
+          </nav>
+          <div class="markdown-body" id="articleBody">
+            <p>Loading...</p>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script type="module" src="./reader.js"></script>
+  </body>
+</html>

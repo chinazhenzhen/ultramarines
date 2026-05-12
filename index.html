@@ -5,182 +5,159 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="马震 AI Agent / 后端研发工程师简历、深度面试 Q&A 与分类复习资料"
+      content="AI Agent 面试资料库：Agent Runtime、RAG、LLM 工程化、后端云原生与深度追问演练"
     />
-    <title>马震 · AI Agent 面试作战台</title>
+    <title>AI Agent Interview Atlas</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar">
-        <a class="brand" href="#top" aria-label="返回顶部">
-          <span class="brand-mark">MZ</span>
-          <span>
-            <strong>马震</strong>
-            <small>AI Agent / Backend</small>
-          </span>
-        </a>
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="返回首页">
+        <span class="brand-mark">AI</span>
+        <span>
+          <strong>Agent Interview Atlas</strong>
+          <small>生产级 AI Agent 面试资料库</small>
+        </span>
+      </a>
+      <nav class="nav-list" aria-label="主导航">
+        <a href="#library">长文库</a>
+        <a href="#map">知识地图</a>
+        <a href="#drills">追问演练</a>
+        <a href="#evidence">候选素材</a>
+      </nav>
+    </header>
 
-        <nav class="nav-list" aria-label="页面导航">
-          <a href="#resume" data-icon="user">简历核心</a>
-          <a href="#architecture" data-icon="box">3D 架构</a>
-          <a href="#qa" data-icon="messages-square">面试 Q&A</a>
-          <a href="#review" data-icon="book-open">复习资料</a>
-          <a href="#timeline" data-icon="route">项目战线</a>
-          <a href="#docs" data-icon="file-text">完整文档</a>
-        </nav>
-
-        <div class="sidebar-panel">
-          <span class="panel-label">目标岗位</span>
-          <p>AI Agent 开发工程师 / LLM 应用平台研发 / Python & Golang 后端研发</p>
+    <main id="top">
+      <section class="hero-shell" aria-labelledby="heroTitle">
+        <img class="hero-image" src="./assets/hero-agent-atlas.png" alt="" />
+        <div class="hero-vignette"></div>
+        <div class="hero-content">
+          <p class="eyebrow">AI Agent Field Manual</p>
+          <h1 id="heroTitle">把 Agent 原型讲成生产系统</h1>
+          <p class="hero-copy">
+            这不是一份个人简历页面，而是一套面向 AI Agent 岗位的工程化面试资料库：
+            用架构图、源码模式、追问链路和复习长文，把 LangGraph、RAG、LLM 治理与云原生后端讲透。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="./reader.html?doc=interview-qa">
+              <span data-icon="sparkles"></span>
+              <span>进入深度 Q&A</span>
+            </a>
+            <a class="button" href="./reader.html?doc=agent-runtime">
+              <span data-icon="book-open-check"></span>
+              <span>阅读 Agent Runtime</span>
+            </a>
+          </div>
         </div>
-      </aside>
+        <aside class="hero-panel" aria-label="资料库指标">
+          <div class="panel-card">
+            <span>Focus</span>
+            <strong>4</strong>
+            <small>核心技术域</small>
+          </div>
+          <div class="panel-card">
+            <span>Depth</span>
+            <strong>80+</strong>
+            <small>追问与答法</small>
+          </div>
+          <div class="panel-card">
+            <span>Runtime</span>
+            <strong>3D</strong>
+            <small>交互系统图</small>
+          </div>
+        </aside>
+      </section>
 
-      <main id="top" class="content">
-        <section class="command-band" id="resume">
-          <div class="intro-copy">
-            <p class="eyebrow">Interview Control Deck</p>
-            <h1>马震 · 生产级 AI Agent 与后端平台研发</h1>
-            <p class="lead">
-              7 年后端与 AI 平台研发经验，近一年聚焦 LangGraph、RAG、LLM Workflow、多模态 DAG 编排与云原生调度。核心叙事：用工程系统管理模型不确定性。
-            </p>
-            <div class="action-row" aria-label="快捷操作">
-              <a class="icon-button primary" href="./docs/interview-qa.md" target="_blank" rel="noreferrer">
-                <span data-icon="sparkles"></span>
-                <span>深度 Q&A</span>
-              </a>
-              <a class="icon-button" href="./docs/review/README.md" target="_blank" rel="noreferrer">
-                <span data-icon="library"></span>
-                <span>复习索引</span>
-              </a>
-              <a class="icon-button" href="https://github.com/chinazhenzhen/ultramarines/actions" target="_blank" rel="noreferrer">
-                <span data-icon="workflow"></span>
-                <span>Actions</span>
-              </a>
-            </div>
-          </div>
+      <section class="section intro-grid">
+        <div>
+          <p class="eyebrow">Reading Strategy</p>
+          <h2>先建立面试叙事，再补工程细节</h2>
+        </div>
+        <p>
+          资料库按“主线叙事 -> 架构拆解 -> 源码模式 -> 失败边界 -> 指标评测”的顺序组织。
+          面试时不要只背概念，要把每个技术点落到生产约束：状态、恢复、校验、成本、观测和上线后的 badcase 闭环。
+        </p>
+      </section>
 
-          <div class="signal-grid" aria-label="核心指标">
-            <article>
-              <span>Agent DAG</span>
-              <strong>95%+</strong>
-              <small>一次性可执行率</small>
-            </article>
-            <article>
-              <span>Streaming</span>
-              <strong>&lt;1.5s</strong>
-              <small>首 token 延迟</small>
-            </article>
-            <article>
-              <span>Intent</span>
-              <strong>-40%</strong>
-              <small>LLM 调用成本</small>
-            </article>
-            <article>
-              <span>RAG</span>
-              <strong>88%+</strong>
-              <small>Top-3 命中率</small>
-            </article>
+      <section class="section library-section" id="library" aria-labelledby="libraryTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Editorial Library</p>
+            <h2 id="libraryTitle">技术长文库</h2>
           </div>
-        </section>
+          <a class="text-link" href="./reader.html?doc=review-index">
+            <span>打开复习索引</span>
+            <span data-icon="arrow-up-right"></span>
+          </a>
+        </div>
+        <div class="article-grid" id="articleGrid"></div>
+      </section>
 
-        <section class="section-grid">
-          <div class="section-copy">
-            <p class="eyebrow">Positioning</p>
-            <h2>主线定位</h2>
-            <p>
-              面试中持续把能力落到三个关键词：Agent Runtime、RAG 工程化、云原生后端底座。不要把自己讲成“会调用模型 API”，而是讲成“能把 LLM 原型落成生产系统的人”。
-            </p>
+      <section class="section atlas-section" id="map">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Systems Map</p>
+            <h2>AI Agent 系统知识地图</h2>
           </div>
-          <div class="focus-list" id="focusList"></div>
-        </section>
+          <div class="segmented" role="group" aria-label="切换系统视角">
+            <button class="segment active" data-view="agent">Agent</button>
+            <button class="segment" data-view="rag">RAG</button>
+            <button class="segment" data-view="governance">Governance</button>
+            <button class="segment" data-view="infra">Infra</button>
+          </div>
+        </div>
+        <div class="atlas-workbench">
+          <div class="canvas-card">
+            <canvas id="systemCanvas" aria-label="3D 系统知识地图"></canvas>
+            <div class="canvas-fallback" id="canvasFallback">
+              Agent Runtime -> Retrieval -> Evaluation -> Cloud Native Delivery
+            </div>
+          </div>
+          <article class="node-panel" id="nodePanel">
+            <span class="panel-label">当前视角</span>
+            <h3>Agent Runtime</h3>
+            <p>从意图解析、状态图、Planner、确定性装配、工具执行到观测评测，形成可恢复的生产级 Agent 运行时。</p>
+          </article>
+        </div>
+      </section>
 
-        <section id="architecture" class="architecture-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Interactive Architecture</p>
-              <h2>3D Agent Runtime 架构图</h2>
-            </div>
-            <div class="segmented" role="group" aria-label="架构视角">
-              <button class="segment active" data-view="agent">Agent</button>
-              <button class="segment" data-view="rag">RAG</button>
-              <button class="segment" data-view="infra">Infra</button>
-            </div>
+      <section class="section drill-section" id="drills">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Interview Drill</p>
+            <h2>追问演练</h2>
           </div>
-          <div class="architecture-workbench">
-            <div class="canvas-wrap">
-              <canvas id="architectureCanvas" aria-label="3D 架构图"></canvas>
-              <div class="canvas-fallback" id="canvasFallback">
-                <strong>Agent Runtime</strong>
-                <span>Intent -> LangGraph -> Planner -> DraftGenerator -> Registry Guard -> DAG Execution</span>
-              </div>
-            </div>
-            <div class="node-panel">
-              <span class="panel-label">当前节点</span>
-              <h3 id="nodeTitle">LangGraph Runtime</h3>
-              <p id="nodeBody">
-                多阶段状态机负责 checkpoint、interrupt/resume、阶段流转和事件输出，是把长流程 Agent 做成可恢复系统的核心。
-              </p>
-              <ul id="nodeFacts"></ul>
-            </div>
-          </div>
-        </section>
+          <label class="search-box">
+            <span data-icon="search"></span>
+            <input id="qaSearch" type="search" placeholder="搜索 LangGraph / RAG / SSE / K8s / Eval" />
+          </label>
+        </div>
+        <div class="drill-layout">
+          <div class="qa-list" id="qaList"></div>
+          <article class="answer-panel" id="answerPanel">
+            <span class="panel-label">Answer Strategy</span>
+            <h3>选择一个问题</h3>
+            <p>左侧问题会展开回答框架、追问方向和面试表达重点。</p>
+          </article>
+        </div>
+      </section>
 
-        <section id="qa" class="qa-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Interview Drill</p>
-              <h2>高频深挖 Q&A</h2>
-            </div>
-            <label class="search-box">
-              <span data-icon="search"></span>
-              <input id="qaSearch" type="search" placeholder="搜索 LangGraph / RAG / SSE / K8s" />
-            </label>
+      <section class="section evidence-section" id="evidence">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Candidate Evidence</p>
+            <h2>可被面试追问的项目证据</h2>
           </div>
-          <div class="qa-layout">
-            <div class="qa-list" id="qaList"></div>
-            <article class="answer-panel" id="answerPanel">
-              <span class="panel-label">Answer Strategy</span>
-              <h3>选择一个问题</h3>
-              <p>左侧问题会展开回答框架、追问方向和面试表达重点。</p>
-            </article>
-          </div>
-        </section>
-
-        <section id="review" class="review-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Review Library</p>
-              <h2>分类复习资料</h2>
-            </div>
-            <div class="chip-row" id="reviewFilters" aria-label="资料筛选"></div>
-          </div>
-          <div class="review-grid" id="reviewGrid"></div>
-        </section>
-
-        <section id="timeline" class="timeline-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Project Line</p>
-              <h2>项目战线与可讲成果</h2>
-            </div>
-          </div>
-          <div class="timeline" id="timelineList"></div>
-        </section>
-
-        <section id="docs" class="docs-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Artifacts</p>
-              <h2>完整文档入口</h2>
-            </div>
-          </div>
-          <div class="docs-grid" id="docsGrid"></div>
-        </section>
-      </main>
-    </div>
+          <a class="text-link" href="./reader.html?doc=resume-source">
+            <span>查看原始材料</span>
+            <span data-icon="arrow-up-right"></span>
+          </a>
+        </div>
+        <div class="evidence-grid" id="evidenceGrid"></div>
+      </section>
+    </main>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script type="module" src="./app.js"></script>

@@ -1,5 +1,19 @@
 # AI Agent 与 LangGraph 工程化复习
 
+![图 1 - Agent Runtime 运行时：状态图、checkpoint、validation 与执行轨道](../../assets/article-agent-runtime.png)
+
+> 阅读目标：把 “我会用 LangGraph” 升级成 “我能设计一个可恢复、可观测、可评测的 Agent Runtime”。面试官真正关心的不是 API 记忆，而是你如何用工程边界控制模型的不确定性。
+
+## 0. 本文地图
+
+| 模块 | 你要讲清楚什么 | 面试官想验证什么 |
+|---|---|---|
+| Workflow vs Agent | 为什么不是所有任务都要全自动 Agent | 你是否知道 autonomy 的代价 |
+| StateGraph | 为什么状态要显式建模 | 你是否能处理长流程恢复 |
+| Checkpoint / Interrupt | 用户中断、刷新、选择后如何继续 | 你是否做过生产交互 |
+| Planner + Assembly | LLM 和确定性代码如何分工 | 你是否能降低幻觉 DAG |
+| Trace / Eval | 上线后如何定位和回归质量 | 你是否理解 Agent 运维 |
+
 ## 1. 先建立正确概念
 
 ### Workflow vs Agent
@@ -11,6 +25,16 @@
 - **生产系统通常是混合形态**：用 workflow 管边界，用 agentic planning 处理开放语义，用 deterministic code 保证执行可靠。
 
 Anthropic 的建议是先从最简单、可组合的模式开始，只有当任务复杂度真的需要模型动态决策时再提高 agent autonomy。这个观点非常适合解释你的 “Planner + 确定性装配” 设计。
+
+### 面试官为什么问这个
+
+很多候选人会把 Agent 讲成“LLM + 工具调用”。这个回答太浅。更好的方式是把问题拆成两个维度：
+
+- **路径是否固定**：固定路径更像 workflow，动态路径更像 agent。
+- **决策权在哪里**：业务规则、代码、模型和人工各自决定什么。
+- **失败是否可恢复**：生产级 Agent 必须支持重试、回放、断点恢复，而不是只靠一次 prompt 成功。
+
+你可以明确说：我不追求“模型控制一切”，而是把模型放在语义理解、规划、评估这些高价值位置，把结构正确性、权限、幂等和执行交给工程系统。
 
 ## 2. LangGraph 的核心价值
 
@@ -51,6 +75,61 @@ flowchart TD
 | Deterministic | 为什么装配器？ | DAG 结构必须稳定，不能靠模型猜 handle |
 | Observation | 为什么 trace/eval？ | Agent 上线后必须能定位质量和成本问题 |
 
+### 源码形态：StateGraph 的最小骨架
+
+下面不是背代码，而是帮助你把架构讲得更像真的做过。面试时可以说“真实代码会更复杂，但骨架大概是这样”：
+
+```python
+from typing import Literal, TypedDict
+from langgraph.graph import StateGraph, END
+
+
+class AgentState(TypedDict):
+    session_id: str
+    current_stage: str
+    user_spec: dict
+    planner_plan: dict | None
+    dag_draft_ref: str | None
+    pending_interrupt: dict | None
+    error_context: dict | None
+
+
+def route_intent(state: AgentState) -> AgentState:
+    # rule-first: continue/retry/select/edit/cancel
+    return state
+
+
+def plan_story(state: AgentState) -> AgentState:
+    # LLM planner: structured output, low temperature, schema validation
+    return state
+
+
+def assemble_dag(state: AgentState) -> AgentState:
+    # deterministic code expands workflow pattern into executable DAG
+    return state
+
+
+def validate_dag(state: AgentState) -> Literal["execute", "repair", "ask_user"]:
+    # registry guard: node type, edge handle, slot schema, custom_config
+    return "execute"
+
+
+graph = StateGraph(AgentState)
+graph.add_node("route_intent", route_intent)
+graph.add_node("plan_story", plan_story)
+graph.add_node("assemble_dag", assemble_dag)
+graph.add_conditional_edges("assemble_dag", validate_dag)
+graph.set_entry_point("route_intent")
+runtime = graph.compile(checkpointer=...)
+```
+
+这段代码背后的设计点：
+
+- `AgentState` 只放可恢复状态，不放 SDK client、数据库连接、SSE socket。
+- `route_intent` 是成本治理点，明确指令不需要每次调 LLM。
+- `validate_dag` 是模型输出进入执行系统前的硬门禁。
+- `checkpointer` 让 session/run 可以从断点恢复，而不是重新跑完整流程。
+
 ## 4. Planner + Deterministic Assembly 模式
 
 ### 问题
@@ -80,6 +159,35 @@ flowchart LR
 ### 面试金句
 
 > LLM 负责创意理解和高层规划，代码负责结构装配和执行正确性。这样不是削弱 Agent，而是把模型自由度放在最有价值的位置。
+
+### 设计模式：把 LLM 输出降维
+
+不要让模型输出完整 DAG，而是让它输出更小、更稳定的 plan：
+
+```json
+{
+  "workflow_pattern": "text_to_video_storyboard",
+  "aspect_ratio": "9:16",
+  "shot_count": 4,
+  "style": "cinematic cyberpunk",
+  "shots": [
+    {
+      "id": "shot_01",
+      "intent": "establishing",
+      "subject": "rainy neon street",
+      "motion": "slow dolly in"
+    }
+  ]
+}
+```
+
+然后装配器把它映射到真实系统：
+
+```text
+semantic plan -> workflow pattern -> node templates -> edge handles -> slot binding -> flow_info layout -> registry guard
+```
+
+这个设计的面试价值很高，因为它说明你知道 LLM 的强项是语义和规划，弱项是精确结构、引用一致性和复杂 JSON 的业务正确性。
 
 ## 5. Checkpoint 设计要点
 
@@ -114,6 +222,14 @@ flowchart LR
 - 故事 A/B/C 选择属于 Question。
 - 发布 Command、外部执行、覆盖已有 DAG 可归为 Review。
 - 长任务进度事件属于 Notify。
+
+### Interrupt/Resume 的回答模板
+
+```text
+当图执行到需要用户决策的节点时，运行时不会继续往下猜，而是把 pending action 写入 state，
+通过 SSE 发给前端，并把 checkpoint 持久化。用户选择后，resume 输入只携带用户决策，
+图从同一个 thread 的 checkpoint 继续执行。这样既避免重复调用模型，也避免 UI 刷新导致流程丢失。
+```
 
 ## 7. Agent 设计模式速记
 

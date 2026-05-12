@@ -1,5 +1,19 @@
 # LLM 工程化、工具调用、评测与可观测复习
 
+![图 1 - LLM Governance：结构化输出、工具权限、Trace、Eval 与成本治理](../../assets/article-llm-observability.png)
+
+> 阅读目标：把 LLM 工程化讲成一套“可信执行边界”。模型输出永远不是事实本身，而是需要被 schema、权限、业务校验、trace 和 eval 接住的 proposal。
+
+## 0. 本文地图
+
+| 模块 | 核心问题 | 面试回答方向 |
+|---|---|---|
+| Structured Output | JSON 正确是否等于业务正确 | 解析、schema、业务校验三层分开 |
+| Tool Calling | 模型是否能直接执行工具 | action proposal + policy gate + audit |
+| Provider Abstraction | 为什么封装多模型 | 能力、成本、fallback、错误归一 |
+| Eval | 怎么证明改动变好了 | capability vs regression |
+| Trace | 怎么排查线上 badcase | run/stage/model/tool span |
+
 ## 1. Structured Output
 
 结构化输出的目的不是“让 JSON 好看”，而是让 LLM 输出进入工程系统前可解析、可验证、可回放、可修复。
@@ -20,6 +34,45 @@
 - 引用的 node type / slot / tool 是否存在。
 - confidence 是否和 reason 一致。
 - 是否缺少必填业务字段。
+
+### 源码形态：模型 schema 与业务校验分离
+
+```python
+from pydantic import BaseModel, Field, ValidationError
+
+
+class PlannerShot(BaseModel):
+    id: str
+    subject: str
+    motion: str
+    duration_sec: int = Field(ge=1, le=12)
+
+
+class PlannerOutput(BaseModel):
+    workflow_pattern: str
+    aspect_ratio: str
+    shot_count: int = Field(ge=1, le=12)
+    shots: list[PlannerShot]
+
+
+def validate_planner_output(raw: str, registry: WorkflowRegistry) -> PlannerOutput:
+    try:
+        parsed = PlannerOutput.model_validate_json(raw)
+    except ValidationError as exc:
+        raise RetryableModelOutputError(exc)
+
+    if parsed.workflow_pattern not in registry.patterns:
+        raise BusinessValidationError("unknown workflow pattern")
+    if len(parsed.shots) != parsed.shot_count:
+        raise BusinessValidationError("shot_count does not match shots")
+    return parsed
+```
+
+面试表达重点：
+
+- Pydantic / JSON Schema 解决结构问题，不自动解决业务语义问题。
+- registry 校验解决“模型引用了不存在的工具、节点、slot、pattern”。
+- retry 只能处理可修复错误，业务冲突要澄清或 fallback。
 
 ## 2. Tool Calling 设计
 
@@ -53,6 +106,28 @@ flowchart LR
 
 > Tool calling 不是让模型直接操作系统，而是让模型提出结构化 action proposal，系统再做权限、校验、幂等和审计。
 
+### 工具调用的状态机
+
+```text
+LLM proposes tool_call
+  -> parse arguments
+  -> schema validation
+  -> permission check
+  -> business validation
+  -> risk classification
+  -> idempotency key
+  -> execute
+  -> audit log
+  -> structured result back to model
+```
+
+如果面试官问“模型能不能删数据、发请求、发布内容”，不要只说“加人工审核”。更完整的回答是：
+
+- 工具按风险分级，低风险只校验，高风险必须 review。
+- 所有写操作要有 idempotency key，避免重试重复执行。
+- 工具返回稳定结构，包含 `ok`、`error_code`、`retryable`、`audit_id`。
+- 工具参数只允许 allowlist 资源，不让模型自由拼 URL、路径或 SQL。
+
 ## 3. 多模型 Provider 抽象
 
 ### 为什么需要
@@ -79,6 +154,29 @@ normalize_error(error) -> ProviderError
 - JSON schema 要求高：选择结构化输出稳定的模型。
 - 低延迟路径：预设超时 + fallback。
 - 高风险场景：更强模型 + 人工审核。
+
+### 错误归一：不要把 SDK 异常泄漏到业务层
+
+```python
+class ProviderError(Exception):
+    def __init__(self, code: str, retryable: bool, provider: str, raw: Exception):
+        self.code = code
+        self.retryable = retryable
+        self.provider = provider
+        self.raw = raw
+
+
+def normalize_error(provider: str, error: Exception) -> ProviderError:
+    if is_rate_limit(error):
+        return ProviderError("rate_limit", True, provider, error)
+    if is_context_length(error):
+        return ProviderError("context_length", False, provider, error)
+    if is_schema_error(error):
+        return ProviderError("schema_generation_failed", True, provider, error)
+    return ProviderError("unknown_provider_error", False, provider, error)
+```
+
+这样模型路由、fallback 和告警系统才能用统一错误码，而不是散落在业务代码里判断各家 SDK 的异常类型。
 
 ## 4. Streaming 与用户体验指标
 
@@ -127,6 +225,29 @@ flowchart TD
 
 面试里可以说：Agent 评测要看 transcript/trajectory，因为最终答案正确不代表过程安全；过程错误也可能因为运气得到正确答案。
 
+### Trajectory Eval 的断言例子
+
+```yaml
+case_id: dag_generation_042
+input: "生成 4 个镜头的赛博朋克竖屏短片"
+assertions:
+  - stage_sequence_contains:
+      - intent
+      - spec_confirm
+      - planner
+      - dag_assembly
+      - validation
+  - tool_call_allowed:
+      tool: create_dag_draft
+      max_calls: 1
+  - json_schema_valid:
+      target: planner_output
+  - dag_guard_passed: true
+  - cost_less_than_usd: 0.08
+```
+
+这类断言能证明 Agent 不是“最后文本看起来对”，而是过程也符合系统约束。
+
 ## 6. Trace 设计
 
 ### Trace Span 结构
@@ -157,6 +278,16 @@ flowchart TD
 ### 为什么要记录 prompt_version？
 
 没有 prompt_version，就无法解释“同一个模型今天效果为什么变了”。Prompt 是代码的一部分，必须可版本化、可回滚、可对比指标。
+
+### Trace 到排障的映射
+
+| 线上症状 | 先看哪个 span | 可能原因 |
+|---|---|---|
+| 回答慢 | queue / model / tool / retrieval | 队列拥塞、provider 抖动、rerank 慢 |
+| DAG 不可执行 | planner / validation / assembly | pattern 选错、slot 缺失、registry 版本不一致 |
+| 成本突增 | usage / prompt_version | 上下文膨胀、fallback 频繁、重试循环 |
+| 安全漏判 | risk classifier / post-check | 风险规则缺失、judge rubric 弱 |
+| 用户刷新丢状态 | event / checkpoint | event store 缺失、thread_id 不一致 |
 
 ## 7. 成本治理
 

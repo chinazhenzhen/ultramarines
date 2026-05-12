@@ -1,5 +1,19 @@
 # RAG、混合检索与医疗问答复习
 
+![图 1 - Hybrid Retrieval：BM25、Dense、Reranker 与 Grounded Answer](../../assets/article-rag-retrieval.png)
+
+> 阅读目标：把 RAG 讲成“可评测的信息检索系统 + 有边界的生成系统”，而不是“向量库 + prompt”。参考 Draven 风格的长文组织方式，本文会同时给出链路图、源码骨架、指标口径和失败类型。
+
+## 0. 本文地图
+
+| 模块 | 必须掌握 | 面试风险 |
+|---|---|---|
+| Query Understanding | 意图、实体、风险、改写 | 只会说 embedding |
+| Retrieval | BM25、Dense、过滤、融合 | 不知道召回覆盖和高位质量区别 |
+| Rerank | Cross-encoder 精排 | 不知道 reranker 为什么慢但有效 |
+| Context Builder | window、引用、多样性、证据不足 | 只会把 Top-K 全塞给模型 |
+| Safety / Eval | 医疗边界、faithfulness、badcase | 只看生成效果，不看风险 |
+
 ## 1. RAG 的本质
 
 RAG 不是“把文档塞进 prompt”，而是把外部知识作为可更新、可追溯的 non-parametric memory，与模型的 parametric memory 结合。经典 RAG 论文强调两个价值：
@@ -8,6 +22,16 @@ RAG 不是“把文档塞进 prompt”，而是把外部知识作为可更新、
 - 知识密集任务需要 provenance，检索片段能提供证据来源。
 
 面试里要把 RAG 拆成四段：**query understanding -> retrieval -> reranking/context assembly -> grounded generation**。
+
+### 面试官为什么问这个
+
+RAG 是 AI 应用岗位最容易被问穿的领域。浅层回答通常停留在“切 chunk、embedding、存向量库、检索后回答”。深层回答要覆盖这些工程问题：
+
+- 用户问题如何改写，是否需要多路 query。
+- 检索失败是召回问题、重排问题还是知识源问题。
+- Top-K 证据怎么进入上下文，是否保留引用和来源。
+- 证据不足、证据冲突、高风险医疗问题如何处理。
+- 指标如何定义，Top-3 命中率为什么比 Top-10 更贴近业务。
 
 ## 2. 医疗 RAG 链路图
 
@@ -78,6 +102,48 @@ flowchart LR
 
 你可以说：医疗场景我倾向“分路召回 + 去重 + rerank + 分桶评测”，因为不同 query 类型差异很大，先保证候选覆盖，再用 reranker 提升 Top-K。
 
+### 源码形态：分路召回 + RRF + Rerank
+
+真实代码会依赖具体 ES / Faiss / Qdrant SDK，但面试中可以用下面的伪代码讲清控制流：
+
+```python
+def retrieve(query: str, patient_context: dict) -> list[Passage]:
+    request = understand_query(query, patient_context)
+    if request.risk_level == "high":
+        return []
+
+    bm25_hits = elastic_bm25.search(
+        query=request.keyword_query,
+        filters=request.filters,
+        size=80,
+    )
+    dense_hits = vector_index.search(
+        embedding=embed(request.semantic_query),
+        filters=request.filters,
+        size=80,
+    )
+
+    merged = reciprocal_rank_fusion([bm25_hits, dense_hits], k=60)
+    candidates = deduplicate_by_source_and_span(merged)
+    ranked = reranker.score(query=request.original_query, passages=candidates[:120])
+    return context_builder.select(ranked, max_tokens=2500, citation_required=True)
+```
+
+这段代码能引出几个关键点：
+
+- query understanding 不是可有可无，它决定检索分路、过滤条件和安全策略。
+- BM25 和 Dense 的分数不要直接相加，RRF 或 rerank 更稳。
+- reranker 不负责全库召回，只负责候选精排。
+- context builder 是独立模块，不是简单 `"\n".join(top_k)`。
+
+### RRF 公式怎么解释
+
+```text
+score(d) = Σ 1 / (k + rank_i(d))
+```
+
+RRF 的优点是不用比较 BM25 分数和向量相似度的绝对值，只看文档在各路召回中的排名。面试里不用推公式，但要知道它解决的是“多路检索器分数尺度不可比”的问题。
+
 ## 5. Chunking 与上下文组织
 
 ### Chunking 关键点
@@ -94,6 +160,39 @@ flowchart LR
 - 去掉互相冲突或低权威来源。
 - 保留引用 id，生成答案时强制引用。
 - 对证据不足的 query 标记 low evidence。
+
+### Context Builder 的设计模式
+
+```text
+candidate passages
+  -> source authority filter
+  -> conflict detection
+  -> adjacent-window expansion
+  -> diversity selection
+  -> citation id injection
+  -> low-evidence flag
+  -> prompt context
+```
+
+不要把 context builder 讲成拼接字符串。它应该输出结构化上下文：
+
+```json
+{
+  "evidence": [
+    {
+      "citation_id": "doc_42#p3",
+      "title": "高血压用药注意事项",
+      "authority": "clinical_guideline",
+      "updated_at": "2025-04-10",
+      "span": "孕妇、儿童、慢病患者需咨询医生后使用..."
+    }
+  ],
+  "low_evidence": false,
+  "conflicts": []
+}
+```
+
+这样生成阶段才能被约束：关键结论必须引用 `citation_id`，证据不足时必须保守回答。
 
 ## 6. 医疗安全策略
 
@@ -165,6 +264,20 @@ flowchart LR
 - 引用缺失。
 - 风控漏判。
 - 过度拒答。
+
+### Badcase 复盘模板
+
+| 字段 | 例子 | 用途 |
+|---|---|---|
+| query_type | 药品禁忌 / 症状咨询 / 检查报告 | 分桶看问题 |
+| retrieval_hit | true / false | 判断召回是否失败 |
+| rerank_position | 正确证据在第几位 | 判断重排是否失败 |
+| context_noise | 高 / 中 / 低 | 判断上下文是否污染 |
+| answer_supported | true / false | 判断生成是否忠实 |
+| safety_decision | normal / conservative / reject | 判断安全策略 |
+| fix_owner | retriever / reranker / prompt / policy | 明确修复归属 |
+
+面试时补这一段，会显得你不是只做 demo，而是做过上线后的质量迭代。
 
 ## 8. 向量数据库与索引速记
 
