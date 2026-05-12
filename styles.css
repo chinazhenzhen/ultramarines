@@ -2,9 +2,9 @@
    Atlas · Light editorial theme  (Notion / Linear lineage)
    =========================================================== */
 
-@view-transition { navigation: auto; }
-
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+@view-transition { navigation: auto; }
 
 :root {
   color-scheme: light;
@@ -463,6 +463,54 @@ main { padding-bottom: 96px; }
 
 .card-cta.is-disabled { color: var(--ink-4); cursor: not-allowed; }
 .card-cta.is-disabled::after { display: none; }
+
+/* Drawer-style category list on homepage card (5 review groups) */
+.card-groups {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-group {
+  position: relative;
+  z-index: 1;
+}
+
+.card-group a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.card-group a:hover {
+  background: color-mix(in oklab, var(--tone, var(--ink)) 8%, var(--surface));
+  color: var(--ink);
+}
+
+.card-group-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--tone, var(--ink-3));
+}
+
+.card-group-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
 
 .card p {
   margin: 0;

@@ -380,7 +380,18 @@ POST /v1/runs/{run_id}/retry
 - 检查客户端 EventSource 是否重连。
 - 检查后台 run 是否真的产生事件。
 
-## 10. 官方与高质量资料
+## 10. 与简历项目的映射
+
+| 简历技术点 | 本文章节 | 相关深读 |
+|---|---|---|
+| ArtArch.AI Responses-style SSE / first token < 1.5s | §1 - §2 SSE 工程 | [AI Agent 与 LangGraph 工程化](./01-ai-agent-langgraph.md) §3 Layer 7 |
+| Session / Run / Message / Checkpoint 投影 | §3 后端领域模型 | [Planner + Deterministic Assembly](./06-planner-deterministic-assembly.md) §5 流式协议 |
+| K8s 调度 300+ V100/T4 GPU | §4 - §5 GPU 平台 | [简历正文 · 智慧医疗平台](../马震-15253371862-后端研发工程师.md#项目经历) |
+| Operator / CRD 二开 | §6 CRD/Operator | — |
+| Python ↔ Golang 取舍 | §7 | — |
+| Redis / Postgres / RabbitMQ / S3 中间件 | §8 | [Vector DB 选型 + Reranker](./07-vector-db-reranker.md)（pgvector 部分） |
+
+## 11. 官方与高质量资料
 
 - MDN Using SSE：<https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events>
 - FastAPI StreamingResponse：<https://fastapi.tiangolo.com/advanced/custom-response/>

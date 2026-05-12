@@ -330,7 +330,19 @@ flowchart LR
 - 返回证据不足并建议补充信息。
 - 高风险医疗问题直接安全兜底。
 
-## 10. 官方与高质量资料
+## 10. 与简历项目的映射
+
+| 简历技术点 | 本文章节 | 相关深读 |
+|---|---|---|
+| 百度健康助手 · 日均十万级 query | §2 链路图 / §6 安全策略 | [简历正文 · 百度健康助手](../马震-15253371862-后端研发工程师.md#项目经历) |
+| BM25 + Dense + Reranker 混合检索 | §3 - §4 | [Vector DB 选型 + Reranker 深入](./07-vector-db-reranker.md) |
+| Top-3 命中率 70% → 88%+ | §4 RRF / §7 评测 | [Vector DB 选型 + Reranker 深入](./07-vector-db-reranker.md) |
+| 引用溯源 / 医学幻觉降低 | §5 Context Builder | — |
+| 多轮意图识别 92%+ | §6 策略设计 | [AI Agent 与 LangGraph 工程化](./01-ai-agent-langgraph.md) |
+| 高风险拦截召回率 98%+ | §6 安全策略 | — |
+| Elasticsearch + Faiss 自建检索 | §8 索引速记 | [Vector DB 选型 + Reranker 深入](./07-vector-db-reranker.md) |
+
+## 11. 官方与高质量资料
 
 - RAG NeurIPS 2020：<https://papers.nips.cc/paper/2020/hash/6b493230205f780e1bc26945df7481e5-Abstract.html>
 - BGE Reranker：<https://bge-model.com/bge/bge_reranker.html>

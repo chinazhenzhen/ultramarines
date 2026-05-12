@@ -1,52 +1,105 @@
+/* Atlas Reader — markdown viewer with category-grouped rail. */
+
 const articles = {
-  "interview-qa": {
-    title: "AI Agent 岗位深度追问手册",
-    tag: "Q&A",
-    path: "./docs/interview-qa.md",
-    cover: "./assets/article-agent-runtime.png",
-    summary: "把简历项目转译成面试官会深挖的工程问题，并给出可直接复述的答法、追问与指标口径。",
-    meta: ["45 min", "Interview", "追问链路"],
+  "resume-source": {
+    title: "马震 · 后端研发工程师 / AI Agent 开发",
+    tag: "Resume",
+    path: "./docs/马震-15253371862-后端研发工程师.md",
+    cover: "./assets/cover-resume.jpg",
+    summary: "7 年后端与 AI 平台经验，近一年主线是 LangGraph、RAG、LLM Workflow、云原生调度。简历以工程指标为锚。",
+    meta: ["10 min", "Resume", "北京 · 在职"],
   },
+
+  "transformer-fundamentals": {
+    title: "Transformer / Attention / Embedding 速通",
+    tag: "Foundations",
+    path: "./docs/review/05-transformer-fundamentals.md",
+    cover: "./assets/cover-transformer.jpg",
+    summary: "把面试 90% 必问的 Transformer 基础打通：scaled dot-product、multi-head、KV cache、位置编码、embedding 几何直觉。",
+    meta: ["22 min", "Foundations", "必问"],
+  },
+
   "agent-runtime": {
     title: "AI Agent 与 LangGraph 工程化",
     tag: "Agent Runtime",
     path: "./docs/review/01-ai-agent-langgraph.md",
     cover: "./assets/article-agent-runtime.png",
     summary: "围绕 Workflow vs Agent、StateGraph、checkpoint、interrupt/resume 与确定性装配，建立生产级 Agent Runtime 的回答框架。",
-    meta: ["18 min", "Architecture", "LangGraph"],
+    meta: ["20 min", "Architecture", "LangGraph"],
   },
+
+  "planner-deterministic": {
+    title: "Planner + Deterministic Assembly 模式",
+    tag: "Agent Runtime",
+    path: "./docs/review/06-planner-deterministic-assembly.md",
+    cover: "./assets/cover-planner.jpg",
+    summary: "ArtArch.AI 95% 一次性可执行率背后的设计模式：LLM 做语义决策，代码做结构装配；Registry Guard、Draft Pattern、失败回流。",
+    meta: ["24 min", "Architecture", "DAG"],
+  },
+
   "rag-retrieval": {
     title: "RAG、混合检索与医疗问答",
-    tag: "RAG",
+    tag: "Retrieval",
     path: "./docs/review/02-rag-retrieval.md",
     cover: "./assets/article-rag-retrieval.png",
     summary: "从混合召回、rerank、context builder、citation 到医疗安全策略，讲清 RAG 质量为什么是一条链路。",
-    meta: ["22 min", "Retrieval", "Safety"],
+    meta: ["24 min", "Retrieval", "Safety"],
   },
+
+  "vector-db-reranker": {
+    title: "Vector DB 选型 + Reranker 深入",
+    tag: "Retrieval",
+    path: "./docs/review/07-vector-db-reranker.md",
+    cover: "./assets/cover-vectordb.jpg",
+    summary: "pgvector / Milvus / Qdrant / ES+Faiss 对比，HNSW vs IVF 调参，bge-reranker 训练与混合分数融合（RRF / Weighted）。",
+    meta: ["22 min", "Retrieval", "Selection"],
+  },
+
   "llm-observability": {
     title: "LLM 工程化、评测与可观测",
     tag: "LLM Ops",
     path: "./docs/review/03-llm-engineering-observability.md",
     cover: "./assets/article-llm-observability.png",
     summary: "结构化输出、工具调用、Provider 抽象、trace、eval、成本与安全边界，是 Agent 上线后的治理层。",
-    meta: ["20 min", "Governance", "Eval"],
+    meta: ["22 min", "Governance", "Eval"],
   },
+
+  "tool-calling-mcp": {
+    title: "Tool Calling、Structured Output、MCP 协议",
+    tag: "LLM Ops",
+    path: "./docs/review/08-tool-calling-mcp.md",
+    cover: "./assets/cover-toolcall.jpg",
+    summary: "function calling 在 OpenAI / Anthropic / Gemini 三家的形态差异，JSON Schema 约束、constrained decoding、MCP 协议详解。",
+    meta: ["22 min", "LLM Ops", "Protocol"],
+  },
+
   "cloud-native": {
     title: "后端架构、SSE、Kubernetes GPU 与 Operator",
     tag: "Backend",
     path: "./docs/review/04-backend-cloud-native.md",
     cover: "./assets/article-cloud-native.png",
     summary: "把 Agent 服务放进真实生产系统：长任务 API、SSE event store、GPU 调度和 Operator 控制循环。",
-    meta: ["20 min", "Infra", "Kubernetes"],
+    meta: ["22 min", "Infra", "Kubernetes"],
   },
+
+  "interview-qa": {
+    title: "AI Agent 岗位深度追问手册",
+    tag: "Interview",
+    path: "./docs/interview-qa.md",
+    cover: "./assets/article-agent-runtime.png",
+    summary: "把简历项目转译成面试官会深挖的工程问题，并给出可直接复述的答法、追问与指标口径。",
+    meta: ["45 min", "Interview", "追问链路"],
+  },
+
   "review-index": {
-    title: "五天复习路线与资料索引",
+    title: "复习路线与资料索引",
     tag: "Index",
     path: "./docs/review/README.md",
     cover: "./assets/hero-agent-atlas.png",
     summary: "按复习节奏、技术域和面试能力建立导航，是整套资料的入口。",
     meta: ["8 min", "Plan", "Index"],
   },
+
   "references": {
     title: "资料来源与延伸阅读",
     tag: "References",
@@ -55,25 +108,58 @@ const articles = {
     summary: "官方文档、论文、源码仓库和工程博客列表。",
     meta: ["10 min", "Sources", "Links"],
   },
-  "resume-source": {
-    title: "马震 · 后端研发工程师 / AI Agent 开发",
-    tag: "Resume",
-    path: "./docs/马震-15253371862-后端研发工程师.md",
-    cover: "./assets/hero-agent-atlas.png",
-    summary: "7 年后端与 AI 平台经验，近一年主线是 LangGraph、RAG、LLM Workflow、云原生调度。简历正文以工程指标为锚。",
-    meta: ["10 min", "Resume", "北京 · 在职"],
-  },
 };
 
-const articleOrder = [
-  "interview-qa",
-  "agent-runtime",
-  "rag-retrieval",
-  "llm-observability",
-  "cloud-native",
-  "review-index",
-  "references",
-  "resume-source",
+/* Drawer groups — each group is a collapsible section in the left rail. */
+const categoryGroups = [
+  {
+    key: "resume",
+    title: "Resume",
+    tone: "var(--tone-resume)",
+    docs: ["resume-source"],
+  },
+  {
+    key: "foundations",
+    title: "Foundations",
+    tone: "#6366f1",
+    docs: ["transformer-fundamentals"],
+  },
+  {
+    key: "agent",
+    title: "Agent Runtime",
+    tone: "var(--tone-review)",
+    docs: ["agent-runtime", "planner-deterministic"],
+  },
+  {
+    key: "retrieval",
+    title: "Retrieval · RAG",
+    tone: "#f59e0b",
+    docs: ["rag-retrieval", "vector-db-reranker"],
+  },
+  {
+    key: "llmops",
+    title: "LLM Ops",
+    tone: "var(--tone-code)",
+    docs: ["llm-observability", "tool-calling-mcp"],
+  },
+  {
+    key: "infra",
+    title: "Backend · Infra",
+    tone: "#8b5cf6",
+    docs: ["cloud-native"],
+  },
+  {
+    key: "interview",
+    title: "Interview",
+    tone: "var(--tone-interview)",
+    docs: ["interview-qa"],
+  },
+  {
+    key: "meta",
+    title: "Meta",
+    tone: "var(--ink-3)",
+    docs: ["review-index", "references"],
+  },
 ];
 
 const params = new URLSearchParams(window.location.search);
@@ -88,19 +174,64 @@ function slugify(text) {
     .replace(/(^-|-$)/g, "");
 }
 
+const railStateKey = "atlas-rail-collapsed";
+
+function getCollapsedSet() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(railStateKey) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCollapsedSet(set) {
+  try {
+    localStorage.setItem(railStateKey, JSON.stringify([...set]));
+  } catch {
+    // ignore storage failures
+  }
+}
+
 function mountRail() {
   const rail = document.getElementById("articleRail");
-  rail.innerHTML = articleOrder
-    .map((id) => {
-      const article = articles[id];
+  const collapsed = getCollapsedSet();
+  const activeGroup = categoryGroups.find((g) => g.docs.includes(selectedId));
+  if (activeGroup) collapsed.delete(activeGroup.key);
+
+  rail.innerHTML = categoryGroups
+    .map((group) => {
+      const isCollapsed = collapsed.has(group.key);
+      const items = group.docs
+        .map((id) => {
+          const article = articles[id];
+          if (!article) return "";
+          const active = id === selectedId ? "active" : "";
+          return `
+            <a class="rail-link ${active}" href="./reader.html?doc=${encodeURIComponent(id)}">
+              <strong>${article.title}</strong>
+              <span>${article.meta[0]} · ${article.tag}</span>
+            </a>`;
+        })
+        .join("");
       return `
-        <a class="rail-link ${id === selectedId ? "active" : ""}" href="./reader.html?doc=${encodeURIComponent(id)}">
-          <strong>${article.title}</strong>
-          <span>${article.tag} · ${article.meta[0]}</span>
-        </a>
-      `;
+        <details class="rail-group" data-key="${group.key}" ${isCollapsed ? "" : "open"} style="--tone:${group.tone}">
+          <summary>
+            <span class="rail-group-name">${group.title}</span>
+            <span class="rail-group-count">${group.docs.length}</span>
+          </summary>
+          <div class="rail-group-body">${items}</div>
+        </details>`;
     })
     .join("");
+
+  rail.querySelectorAll(".rail-group").forEach((details) => {
+    details.addEventListener("toggle", () => {
+      const set = getCollapsedSet();
+      if (details.open) set.delete(details.dataset.key);
+      else set.add(details.dataset.key);
+      saveCollapsedSet(set);
+    });
+  });
 }
 
 function mountHero() {
@@ -149,8 +280,11 @@ function enhanceHeadings(body) {
   });
 
   document.getElementById("tocList").innerHTML = headings
-    .slice(0, 24)
-    .map((heading) => `<a class="${heading.tagName.toLowerCase()}" href="#${heading.id}">${heading.textContent}</a>`)
+    .slice(0, 28)
+    .map(
+      (heading) =>
+        `<a class="${heading.tagName.toLowerCase()}" href="#${heading.id}">${heading.textContent}</a>`,
+    )
     .join("");
 }
 
@@ -235,6 +369,10 @@ function normalizeInternalLinks(body) {
     ["docs/review/02-rag-retrieval.md", "rag-retrieval"],
     ["docs/review/03-llm-engineering-observability.md", "llm-observability"],
     ["docs/review/04-backend-cloud-native.md", "cloud-native"],
+    ["docs/review/05-transformer-fundamentals.md", "transformer-fundamentals"],
+    ["docs/review/06-planner-deterministic-assembly.md", "planner-deterministic"],
+    ["docs/review/07-vector-db-reranker.md", "vector-db-reranker"],
+    ["docs/review/08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["docs/review/references.md", "references"],
     ["interview-qa.md", "interview-qa"],
     ["README.md", "review-index"],
@@ -242,6 +380,10 @@ function normalizeInternalLinks(body) {
     ["02-rag-retrieval.md", "rag-retrieval"],
     ["03-llm-engineering-observability.md", "llm-observability"],
     ["04-backend-cloud-native.md", "cloud-native"],
+    ["05-transformer-fundamentals.md", "transformer-fundamentals"],
+    ["06-planner-deterministic-assembly.md", "planner-deterministic"],
+    ["07-vector-db-reranker.md", "vector-db-reranker"],
+    ["08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["references.md", "references"],
   ]);
 
@@ -282,7 +424,22 @@ async function mountArticle() {
           fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
         },
       });
-      await window.mermaid.run({ querySelector: ".mermaid" });
+      // Render mermaid blocks one at a time so a single malformed diagram
+      // doesn't blow up the whole article render.
+      for (const el of body.querySelectorAll(".mermaid")) {
+        try {
+          await window.mermaid.run({ nodes: [el] });
+        } catch (err) {
+          el.outerHTML = `<pre class="mermaid-error" style="padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink-3);font-family:var(--font-mono);font-size:12.5px;white-space:pre-wrap;">Mermaid render failed:\n${String(err)}\n\n---\n${el.textContent.trim()}</pre>`;
+        }
+      }
+    }
+
+    // Re-trigger hash scroll after async markdown render — the target heading
+    // didn't exist when the browser first parsed the URL fragment.
+    if (window.location.hash) {
+      const target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+      if (target) requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
   } catch (error) {
     body.innerHTML = `

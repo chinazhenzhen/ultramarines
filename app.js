@@ -12,11 +12,13 @@ const categories = [
     tone: "var(--tone-resume)",
     tag: "Resume",
     title: "个人简历",
-    blurb: "技术栈、项目主线、生产指标 —— 让面试官在 90 秒里能定位我。",
-    items: [
-      { label: "马震 · 后端研发工程师", href: reader("resume-source") },
+    blurb: "马震 · 后端研发工程师 / AI Agent 开发。7 年后端 + AI 平台，按工程指标讲项目。",
+    groups: [
+      { label: "个人优势 + 技能清单", href: reader("resume-source") + "#个人优势" },
+      { label: "工作经历", href: reader("resume-source") + "#工作经历" },
+      { label: "项目经历（4 段）", href: reader("resume-source") + "#项目经历" },
     ],
-    cta: { label: "打开简历", href: reader("resume-source") },
+    cta: { label: "打开完整简历", href: reader("resume-source") },
     count: 1,
   },
   {
@@ -24,15 +26,16 @@ const categories = [
     tone: "var(--tone-review)",
     tag: "Review",
     title: "分类复习文档",
-    blurb: "按 Agent / RAG / LLM Ops / Cloud Native 四条主线整理的长文，配架构图与失败边界。",
-    items: [
-      { label: "AI Agent 与 LangGraph 工程化", href: reader("agent-runtime") },
-      { label: "RAG、混合检索与医疗问答", href: reader("rag-retrieval") },
-      { label: "LLM 工程化、评测与可观测", href: reader("llm-observability") },
-      { label: "后端架构、SSE、K8s GPU、Operator", href: reader("cloud-native") },
+    blurb: "按 5 大类抽屉式整理 —— 基础、Agent、RAG、LLM Ops、Infra。每篇含架构图、源码骨架与失败边界。",
+    groups: [
+      { tone: "#6366f1", label: "Foundations", count: 1, href: reader("transformer-fundamentals") },
+      { tone: "var(--tone-review)", label: "Agent Runtime", count: 2, href: reader("agent-runtime") },
+      { tone: "#f59e0b", label: "Retrieval · RAG", count: 2, href: reader("rag-retrieval") },
+      { tone: "var(--tone-code)", label: "LLM Ops", count: 2, href: reader("llm-observability") },
+      { tone: "#8b5cf6", label: "Backend · Infra", count: 1, href: reader("cloud-native") },
     ],
     cta: { label: "进入复习索引", href: reader("review-index") },
-    count: 6,
+    count: 8,
   },
   {
     key: "code",
@@ -49,7 +52,7 @@ const categories = [
     tone: "var(--tone-interview)",
     tag: "Interview",
     title: "面试经历总结",
-    blurb: "围绕简历项目的深度追问、答法骨架与追问链路。每一条都来自真实问过的或可能问的问题。",
+    blurb: "围绕简历项目的深度追问、答法骨架与追问链路。每条都来自真实问过的或可能问的问题。",
     items: [
       { label: "AI Agent 岗位深度追问手册", href: reader("interview-qa") },
     ],
@@ -87,11 +90,27 @@ function renderBento() {
   const root = document.getElementById("bentoGrid");
   root.innerHTML = categories
     .map((c) => {
-      const items = c.items
-        ? `<ul class="card-items">${c.items
-            .map((it) => `<li><a href="${it.href}">${it.label}</a></li>`)
-            .join("")}</ul>`
-        : `<div class="card-empty">${c.empty.replace(/\n/g, "<br>")}</div>`;
+      let items;
+      if (c.groups) {
+        items = `<ul class="card-groups">${c.groups
+          .map(
+            (g) => `
+              <li class="card-group" style="--tone:${g.tone || c.tone}">
+                <a href="${g.href}">
+                  <span class="card-group-dot"></span>
+                  <span class="card-group-label">${g.label}</span>
+                  ${g.count != null ? `<span class="card-group-count">${g.count}</span>` : ""}
+                </a>
+              </li>`,
+          )
+          .join("")}</ul>`;
+      } else if (c.items) {
+        items = `<ul class="card-items">${c.items
+          .map((it) => `<li><a href="${it.href}">${it.label}</a></li>`)
+          .join("")}</ul>`;
+      } else {
+        items = `<div class="card-empty">${c.empty.replace(/\n/g, "<br>")}</div>`;
+      }
       const cta = c.cta.disabled
         ? `<span class="card-cta is-disabled">${c.cta.label}</span>`
         : `<a class="card-cta" href="${c.cta.href}">${c.cta.label}</a>`;

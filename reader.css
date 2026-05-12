@@ -35,10 +35,89 @@
   text-transform: uppercase;
 }
 
+/* ---- Drawer-style accordion groups ---- */
+.rail-group {
+  margin: 0 0 4px;
+  border-radius: 8px;
+}
+
+.rail-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  color: var(--ink-2);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.rail-group > summary::-webkit-details-marker { display: none; }
+.rail-group > summary::marker { display: none; }
+
+.rail-group > summary:hover { background: var(--surface-2); }
+
+.rail-group-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.rail-group-name::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--tone, var(--ink-3));
+  flex: 0 0 auto;
+}
+
+.rail-group[open] .rail-group-name { color: var(--ink); }
+
+.rail-group-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-group > summary::after {
+  content: "▾";
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-4);
+  margin-left: 4px;
+  transition: transform 160ms ease;
+}
+
+.rail-group[open] > summary::after { transform: rotate(-180deg); }
+
+.rail-group-body {
+  padding: 2px 0 6px 6px;
+  border-left: 1px dashed color-mix(in oklab, var(--tone, var(--line-strong)) 25%, var(--line));
+  margin-left: 14px;
+}
+
 .rail-link {
   display: block;
-  padding: 10px 12px;
-  margin: 2px 0;
+  padding: 8px 12px;
+  margin: 1px 0;
   border-radius: 8px;
   color: var(--ink-2);
   transition: background 120ms ease, color 120ms ease;
@@ -50,7 +129,7 @@
 }
 
 .rail-link strong {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.005em;
   line-height: 1.4;
@@ -60,7 +139,7 @@
   margin-top: 4px;
   color: var(--ink-4);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.02em;
 }
 
@@ -70,12 +149,13 @@
 }
 
 .rail-link.active {
-  background: color-mix(in oklab, var(--accent) 8%, var(--surface));
+  background: color-mix(in oklab, var(--tone, var(--accent)) 14%, var(--surface));
   color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--tone, var(--accent));
 }
 
 .rail-link.active strong { color: var(--ink); }
-.rail-link.active span { color: color-mix(in oklab, var(--accent) 70%, var(--ink-2)); }
+.rail-link.active span { color: color-mix(in oklab, var(--tone, var(--accent)) 60%, var(--ink-2)); }
 
 /* ---------- article frame ---------- */
 .article-frame {

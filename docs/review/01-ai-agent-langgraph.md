@@ -268,7 +268,18 @@ semantic plan -> workflow pattern -> node templates -> edge handles -> slot bind
 - schema 失败：把 validation error 反馈给模型一次修复。
 - 业务失败：不要盲目重试，进入 fallback、澄清或确定性默认值。
 
-## 9. 官方与高质量资料
+## 9. 与简历项目的映射
+
+| 简历技术点 | 本文章节 | 相关深读 |
+|---|---|---|
+| LangGraph 多阶段 Agent Runtime | §2 - §3 状态图分层 | — |
+| Checkpoint / Interrupt / Resume | §5 - §6 | LangGraph Persistence 官方文档 |
+| Planner + 确定性装配（95%+ 一次性可执行率） | §4 模式概览 | [Planner + Deterministic Assembly 模式](./06-planner-deterministic-assembly.md) |
+| Responses-style SSE 流式协议 | §3 Layer 7 | [后端架构、SSE、K8s GPU](./04-backend-cloud-native.md) |
+| 双层意图解析 | §3 Layer 1 | — |
+| JSON Schema 结构化输出 | §4 解法 | [Tool Calling、Structured Output、MCP](./08-tool-calling-mcp.md) |
+
+## 10. 官方与高质量资料
 
 - LangGraph Persistence：<https://docs.langchain.com/oss/python/langgraph/persistence>
 - LangGraph Human-in-the-loop：<https://docs.langchain.com/oss/python/langchain/frontend/human-in-the-loop>

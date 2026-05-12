@@ -348,7 +348,18 @@ RAG 或网页内容里可能出现“忽略之前指令”。应对方式：
 
 用户反馈稀疏且偏向极端，无法覆盖隐藏错误。需要自动评测、生产监控、人工抽检、A/B 测试多层信号。
 
-## 10. 官方与高质量资料
+## 10. 与简历项目的映射
+
+| 简历技术点 | 本文章节 | 相关深读 |
+|---|---|---|
+| Gemini JSON Schema 输出 | §1 Structured Output | [Tool Calling、Structured Output、MCP](./08-tool-calling-mcp.md) |
+| 工具调用与权限边界 | §2 Tool Calling | [Tool Calling、Structured Output、MCP](./08-tool-calling-mcp.md) |
+| 多模型 Provider 抽象（百度文心 + Gemini） | §3 | — |
+| 评测与 Badcase 闭环 | §5 - §6 Trace | [RAG、混合检索与医疗问答](./02-rag-retrieval.md) |
+| 成本治理（LLM 调用成本 ↓40%） | §7 | [AI Agent 与 LangGraph 工程化](./01-ai-agent-langgraph.md) §3 Layer 1 双层意图 |
+| UGC 机审分层管线 | §1 / §2 业务校验 | [简历正文 · 百度地图 UGC](../马震-15253371862-后端研发工程师.md#项目经历) |
+
+## 11. 官方与高质量资料
 
 - Gemini Structured Outputs：<https://ai.google.dev/gemini-api/docs/structured-output>
 - Gemini Function Calling：<https://ai.google.dev/gemini-api/docs/function-calling>
