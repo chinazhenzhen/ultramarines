@@ -67,7 +67,7 @@ const feedEntries = [
   { date: "2026-05-11", tag: "Review", tone: "var(--tone-review)", title: "后端架构、SSE、Kubernetes GPU 与 Operator", meta: "20 min · infra", href: reader("cloud-native") },
   { date: "2026-05-11", tag: "Review", tone: "var(--tone-review)", title: "LLM 工程化、评测与可观测", meta: "20 min · governance", href: reader("llm-observability") },
   { date: "2026-05-11", tag: "Review", tone: "var(--tone-review)", title: "RAG、混合检索与医疗问答", meta: "22 min · retrieval", href: reader("rag-retrieval") },
-  { date: "2026-05-11", tag: "Review", tone: "var(--tone-review)", title: "AI Agent 与 LangGraph 工程化", meta: "18 min · architecture", href: reader("agent-runtime") },
+  { date: "2026-05-12", tag: "Review", tone: "var(--tone-review)", title: "AI Agent 与 LangGraph 工程化 · dag_engine 源码复盘", meta: "32 min · architecture", href: reader("agent-runtime") },
   { date: "2026-05-11", tag: "Resume", tone: "var(--tone-resume)", title: "更新简历主线 —— 突出 Agent Runtime 与平台经验", meta: "—  · cv", href: reader("resume-source") },
 ];
 

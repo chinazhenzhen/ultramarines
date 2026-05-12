@@ -4,8 +4,26 @@
 
 ## AI Agent / LangGraph
 
+- LangGraph Thinking in LangGraph：<https://docs.langchain.com/oss/python/langgraph/thinking-in-langgraph>
+  看如何把流程拆成 node、edge 和 shared state，以及 state 里应该存什么。
+
+- LangGraph Graph API：<https://docs.langchain.com/oss/python/langgraph/graph-api>
+  看 State、Node、Edge、reducer、Command、Send 这些底层概念。
+
 - LangGraph Persistence：<https://docs.langchain.com/oss/python/langgraph/persistence>  
   看 checkpoint、thread、fault tolerance、human-in-the-loop 的关系。
+
+- LangGraph Durable Execution：<https://docs.langchain.com/oss/python/langgraph/durable-execution>
+  看 durable execution、determinism、idempotency、side effect 和 resume 的关系。
+
+- LangGraph Interrupts：<https://docs.langchain.com/oss/python/langgraph/interrupts>
+  看 interrupt/resume 的规则、Command 用法和 HITL 注意事项。
+
+- LangGraph Streaming：<https://docs.langchain.com/oss/python/langgraph/streaming>
+  看 stream modes，尤其是 custom stream 和 `get_stream_writer()`。
+
+- LangGraph Workflows and agents：<https://docs.langchain.com/oss/python/langgraph/workflows-agents>
+  看 workflow 与 agent 的边界，以及常见模式。
 
 - LangGraph Human-in-the-loop：<https://docs.langchain.com/oss/python/langchain/frontend/human-in-the-loop>  
   看 interrupt/resume、approve/reject/edit/respond 的交互模型。
