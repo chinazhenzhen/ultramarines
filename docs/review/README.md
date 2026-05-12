@@ -19,10 +19,13 @@
 3. [LLM 工程化、工具调用、评测与可观测](./03-llm-engineering-observability.md)  
    连接 Agent 与后端平台。重点背熟：structured output、tool calling、安全边界、trace、eval、成本治理。
 
-4. [后端架构、SSE、Kubernetes GPU 与 Operator](./04-backend-cloud-native.md)  
+4. [Vibe Coding 时代的工程师优势](./09-vibe-coding-requirement-spec.md)
+   对应 AI 辅助编程面试追问。重点背熟：问题定义、上下文构建、业务语义验证、Token 成本控制，以及“退款功能”如何拆成可执行规格。
+
+5. [后端架构、SSE、Kubernetes GPU 与 Operator](./04-backend-cloud-native.md)
    对应你的后端和平台经验。重点背熟：SSE vs WebSocket、FastAPI streaming、K8s Device Plugin、CRD/Operator。
 
-5. [资料来源与延伸阅读](./references.md)  
+6. [资料来源与延伸阅读](./references.md)
    面试前按主题快速打开官方文档、论文、源码和行业工程博客。
 
 ## 技术栈到面试能力映射
@@ -32,6 +35,7 @@
 | LangGraph / Agent Runtime | 是否懂生产级长流程 Agent | 状态显式化、可中断、可恢复、可回放 |
 | Planner + DAG 装配 | 是否能控制 LLM 不确定性 | LLM 做语义决策，代码做确定性执行 |
 | Gemini / JSON Schema | 是否能做结构化输出 | schema 约束、业务校验、fallback |
+| AI 辅助编程 | 是否懂 Vibe Coding 风险 | 需求规格、上下文、验证、责任归属、成本控制 |
 | SSE / Responses-style API | 是否懂流式体验和工程细节 | first token、事件协议、断线恢复、代理缓冲 |
 | RAG / BM25 + Dense + Rerank | 是否懂搜索质量 | 混合召回、重排、引用溯源、评测分桶 |
 | 医疗安全兜底 | 是否懂高风险业务边界 | 风险识别、拒答、转人工、召回优先 |

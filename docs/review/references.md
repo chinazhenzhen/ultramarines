@@ -45,6 +45,9 @@
 
 ## Structured Output / Tool Calling / Models
 
+- 程序员Carl：Vibe Coding 时代工程师优势访谈题：<https://mp.weixin.qq.com/s/TD4QN-14GGTWdUHK5E9Dxw>
+  看 AI 辅助编程下的问题定义、上下文构建、结果验证、技术决策和 Token 成本控制。
+
 - Gemini Structured Outputs：<https://ai.google.dev/gemini-api/docs/structured-output>  
   看 JSON Schema、Pydantic/Zod、streaming structured output、限制和 best practices。
 

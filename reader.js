@@ -73,6 +73,15 @@ const articles = {
     meta: ["22 min", "LLM Ops", "Protocol"],
   },
 
+  "vibe-coding-spec": {
+    title: "Vibe Coding 时代的工程师优势",
+    tag: "LLM Ops",
+    path: "./docs/review/09-vibe-coding-requirement-spec.md",
+    cover: "./assets/cover-toolcall.jpg",
+    summary: "总结程序员Carl关于 Vibe Coding 的面试答法，并把“加个退款功能”拆成可执行需求规格、幂等和超时处理。",
+    meta: ["24 min", "LLM Ops", "Requirements"],
+  },
+
   "cloud-native": {
     title: "后端架构、SSE、Kubernetes GPU 与 Operator",
     tag: "Backend",
@@ -140,7 +149,7 @@ const categoryGroups = [
     key: "llmops",
     title: "LLM Ops",
     tone: "var(--tone-code)",
-    docs: ["llm-observability", "tool-calling-mcp"],
+    docs: ["llm-observability", "tool-calling-mcp", "vibe-coding-spec"],
   },
   {
     key: "infra",

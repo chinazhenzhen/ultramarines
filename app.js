@@ -31,11 +31,11 @@ const categories = [
       { tone: "#6366f1", label: "Foundations", count: 1, href: reader("transformer-fundamentals") },
       { tone: "var(--tone-review)", label: "Agent Runtime", count: 2, href: reader("agent-runtime") },
       { tone: "#f59e0b", label: "Retrieval · RAG", count: 2, href: reader("rag-retrieval") },
-      { tone: "var(--tone-code)", label: "LLM Ops", count: 2, href: reader("llm-observability") },
+      { tone: "var(--tone-code)", label: "LLM Ops", count: 3, href: reader("llm-observability") },
       { tone: "#8b5cf6", label: "Backend · Infra", count: 1, href: reader("cloud-native") },
     ],
     cta: { label: "进入复习索引", href: reader("review-index") },
-    count: 8,
+    count: 9,
   },
   {
     key: "code",
@@ -62,6 +62,7 @@ const categories = [
 ];
 
 const feedEntries = [
+  { date: "2026-05-12", tag: "Review", tone: "var(--tone-code)", title: "Vibe Coding 时代的工程师优势 · 退款需求规格拆解", meta: "24 min · requirements", href: reader("vibe-coding-spec") },
   { date: "2026-05-12", tag: "Review", tone: "var(--tone-review)", title: "重写复习索引：把 5 天复习节奏拆到每篇长文", meta: "8 min · plan", href: reader("review-index") },
   { date: "2026-05-12", tag: "Interview", tone: "var(--tone-interview)", title: "Agent 岗位深度追问手册更新 · 新增 SSE 重连与 K8s GPU 章节", meta: "45 min · qa", href: reader("interview-qa") },
   { date: "2026-05-11", tag: "Review", tone: "var(--tone-review)", title: "后端架构、SSE、Kubernetes GPU 与 Operator", meta: "20 min · infra", href: reader("cloud-native") },
@@ -77,6 +78,7 @@ const paletteIndex = [
   { group: "复习",   label: "AI Agent 与 LangGraph 工程化",   href: reader("agent-runtime"),     hint: "agent",     tone: "var(--tone-review)" },
   { group: "复习",   label: "RAG、混合检索与医疗问答",         href: reader("rag-retrieval"),     hint: "rag",       tone: "var(--tone-review)" },
   { group: "复习",   label: "LLM 工程化、评测与可观测",         href: reader("llm-observability"), hint: "llm-ops",   tone: "var(--tone-review)" },
+  { group: "复习",   label: "Vibe Coding 时代的工程师优势",      href: reader("vibe-coding-spec"),  hint: "requirements refund ai-coding", tone: "var(--tone-code)" },
   { group: "复习",   label: "后端架构、SSE、K8s GPU、Operator", href: reader("cloud-native"),      hint: "infra",     tone: "var(--tone-review)" },
   { group: "复习",   label: "五天复习路线与资料索引",            href: reader("review-index"),      hint: "plan",      tone: "var(--tone-review)" },
   { group: "复习",   label: "资料来源与延伸阅读",                href: reader("references"),        hint: "refs",      tone: "var(--tone-review)" },
