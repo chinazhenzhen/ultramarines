@@ -56,12 +56,12 @@ const articles = {
     meta: ["10 min", "Sources", "Links"],
   },
   "resume-source": {
-    title: "候选人原始项目材料",
-    tag: "Evidence",
+    title: "马震 · 后端研发工程师 / AI Agent 开发",
+    tag: "Resume",
     path: "./docs/马震-15253371862-后端研发工程师.md",
     cover: "./assets/hero-agent-atlas.png",
-    summary: "这部分只作为面试证据来源，不作为站点主视觉中心。",
-    meta: ["10 min", "Resume", "Private Context"],
+    summary: "7 年后端与 AI 平台经验，近一年主线是 LangGraph、RAG、LLM Workflow、云原生调度。简历正文以工程指标为锚。",
+    meta: ["10 min", "Resume", "北京 · 在职"],
   },
 };
 
@@ -104,15 +104,13 @@ function mountRail() {
 }
 
 function mountHero() {
-  document.title = `${selected.title} · AI Agent Interview Atlas`;
+  document.title = `${selected.title} · Atlas`;
   document.getElementById("articleHero").innerHTML = `
-    <img src="${selected.cover}" alt="" />
-    <div class="article-hero-content">
-      <div class="article-kicker">${selected.tag}</div>
-      <h1>${selected.title}</h1>
-      <p>${selected.summary}</p>
-      <div class="article-meta">${selected.meta.map((item) => `<span>${item}</span>`).join("")}</div>
-    </div>
+    <div class="article-cover"><img src="${selected.cover}" alt="" loading="eager" /></div>
+    <div class="article-kicker">${selected.tag}</div>
+    <h1>${selected.title}</h1>
+    <p>${selected.summary}</p>
+    <div class="article-meta">${selected.meta.map((item) => `<span>${item}</span>`).join("")}</div>
   `;
 }
 
@@ -274,14 +272,14 @@ async function mountArticle() {
         startOnLoad: false,
         theme: "base",
         themeVariables: {
-          background: "#fffaf0",
-          primaryColor: "#ecdfc9",
-          primaryTextColor: "#172027",
-          primaryBorderColor: "#a96f13",
-          lineColor: "#1f8fb5",
-          secondaryColor: "#d9edf1",
-          tertiaryColor: "#f7f3ea",
-          fontFamily: "Inter, sans-serif",
+          background: "#ffffff",
+          primaryColor: "#f4f4f0",
+          primaryTextColor: "#111113",
+          primaryBorderColor: "#d6d6cf",
+          lineColor: "#9a9aa1",
+          secondaryColor: "#eef0ff",
+          tertiaryColor: "#fafaf7",
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
         },
       });
       await window.mermaid.run({ querySelector: ".mermaid" });
