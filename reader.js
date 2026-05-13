@@ -101,12 +101,75 @@ const articles = {
   },
 
   "interview-qa": {
-    title: "AI Agent 岗位深度追问手册",
+    title: "AI Agent 岗位深度追问手册（旧版总览）",
     tag: "Interview",
     path: "./docs/interview-qa.md",
     cover: "./assets/article-agent-runtime.png",
-    summary: "把简历项目转译成面试官会深挖的工程问题，并给出可直接复述的答法、追问与指标口径。",
+    summary: "把简历项目转译成面试官会深挖的工程问题，并给出可直接复述的答法、追问与指标口径。已按项目拆成 3 篇独立 Q&A，本篇保留作为快速索引。",
     meta: ["45 min", "Interview", "追问链路"],
+  },
+
+  "interview-artarch": {
+    title: "ArtArch.AI · AI 智能创作平台 面试 Q&A",
+    tag: "Interview",
+    path: "./docs/interview/artarch-ai.md",
+    cover: "./assets/interview-artarch-architecture.png",
+    summary: "LangGraph 多阶段 Agent Runtime + Planner + 确定性装配 + SSE 协议 + Context Engineering + Eval 闭环。一次性可执行率 55% → 95%+ 的深度拆解。",
+    meta: ["55 min", "Interview", "Agent Runtime"],
+  },
+
+  "interview-baidu-health": {
+    title: "百度健康助手 · 医疗 RAG 多轮 Bot 面试 Q&A",
+    tag: "Interview",
+    path: "./docs/interview/baidu-health.md",
+    cover: "./assets/interview-baidu-health-architecture.png",
+    summary: "多轮状态机 + BM25/Dense 混合检索 + bge-reranker + 引用溯源 + 医疗安全双层兜底。Top-3 命中率 70% → 88%+，高风险拦截 98%+。",
+    meta: ["40 min", "Interview", "RAG · Safety"],
+  },
+
+  "interview-baidu-map-ugc": {
+    title: "百度地图 UGC + 大模型机审 面试 Q&A",
+    tag: "Interview",
+    path: "./docs/interview/baidu-map-ugc.md",
+    cover: "./assets/interview-baidu-map-ugc-architecture.png",
+    summary: "把简历四行话补全成完整方案：上报服务 + 工单流转 + 四层机审管线 + LLM Judge prompt + 评测灰度。机审自动化率 +50-70%。",
+    meta: ["45 min", "Interview", "Moderation"],
+  },
+
+  "interview-note-langgraph-context": {
+    title: "LangGraph 上下文工程实战（深度专题）",
+    tag: "Interview · Notes",
+    path: "./docs/interview/notes/langgraph-context-engineering.md",
+    cover: "./assets/context-engineering-drew.png",
+    summary: "Write / Select / Compress / Isolate 四象限在 LangGraph 上的具体落地，包括 prefix cache、reducer、sub-graph 隔离。",
+    meta: ["18 min", "Notes", "Context Engineering"],
+  },
+
+  "interview-note-planner-deep-dive": {
+    title: "Planner + 确定性装配 深度拆解",
+    tag: "Interview · Notes",
+    path: "./docs/interview/notes/planner-deterministic-deep-dive.md",
+    cover: "./assets/cover-planner.jpg",
+    summary: "把 LLM 工程当 compiler 工程做：Planner 输出 IR，DraftGenerator 做 codegen，Registry Guard 做 type check。",
+    meta: ["20 min", "Notes", "Planner"],
+  },
+
+  "interview-note-rag-retrieval": {
+    title: "医疗 RAG · 混合检索 + Rerank 工程实现",
+    tag: "Interview · Notes",
+    path: "./docs/interview/notes/rag-hybrid-retrieval.md",
+    cover: "./assets/article-rag-retrieval.png",
+    summary: "Query rewrite、BM25 mapping、bge-large-zh chunk 策略、RRF 公式、reranker 部署 + 业务约束 boost，每一步的实测增量。",
+    meta: ["20 min", "Notes", "Retrieval"],
+  },
+
+  "interview-note-ugc-judge": {
+    title: "UGC LLM Judge · Prompt 设计与失败模式",
+    tag: "Interview · Notes",
+    path: "./docs/interview/notes/ugc-llm-judge-prompt.md",
+    cover: "./assets/cover-toolcall.jpg",
+    summary: "结构化 Prompt 骨架 + Pydantic schema + retry-with-feedback + 6 类常见失败模式与修法。",
+    meta: ["16 min", "Notes", "LLM Judge"],
   },
 
   "review-index": {
@@ -168,9 +231,25 @@ const categoryGroups = [
   },
   {
     key: "interview",
-    title: "Interview",
+    title: "Interview · 项目 Q&A",
     tone: "var(--tone-interview)",
-    docs: ["interview-qa"],
+    docs: [
+      "interview-artarch",
+      "interview-baidu-health",
+      "interview-baidu-map-ugc",
+      "interview-qa",
+    ],
+  },
+  {
+    key: "interview-notes",
+    title: "Interview · 技术专题",
+    tone: "var(--tone-interview)",
+    docs: [
+      "interview-note-langgraph-context",
+      "interview-note-planner-deep-dive",
+      "interview-note-rag-retrieval",
+      "interview-note-ugc-judge",
+    ],
   },
   {
     key: "meta",
@@ -181,7 +260,7 @@ const categoryGroups = [
 ];
 
 const params = new URLSearchParams(window.location.search);
-const selectedId = articles[params.get("doc")] ? params.get("doc") : "interview-qa";
+const selectedId = articles[params.get("doc")] ? params.get("doc") : "interview-artarch";
 const selected = articles[selectedId];
 
 function slugify(text) {
@@ -263,8 +342,22 @@ function mountHero() {
   `;
 }
 
+/** Replace {{term|译注}} with <abbr class="term-gloss" data-gloss="译注">term</abbr>.
+ *  The replacement runs on the raw markdown string so it survives `marked` parsing.
+ *  We deliberately do this *before* marked.parse — `{{...}}` doesn't clash with any
+ *  GFM syntax, and emitting raw HTML keeps the tooltip working inside tables / lists. */
+function annotateTerms(markdown) {
+  return markdown.replace(/\{\{([^|{}\n]+)\|([^{}\n]+)\}\}/g, (_, term, gloss) => {
+    const safeTerm = term.trim().replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const safeGloss = gloss.trim().replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    return `<abbr class="term-gloss" data-gloss="${safeGloss}" tabindex="0">${safeTerm}</abbr>`;
+  });
+}
+
 function renderMarkdown(markdown) {
-  const normalizedMarkdown = markdown.replace(/\]\((?:\.\.\/)+assets\//g, "](./assets/");
+  const normalizedMarkdown = annotateTerms(
+    markdown.replace(/\]\((?:\.\.\/)+assets\//g, "](./assets/"),
+  );
 
   if (window.marked) {
     window.marked.setOptions({
@@ -382,6 +475,13 @@ function removeDuplicateLeadCover(body) {
 function normalizeInternalLinks(body) {
   const map = new Map([
     ["docs/interview-qa.md", "interview-qa"],
+    ["docs/interview/artarch-ai.md", "interview-artarch"],
+    ["docs/interview/baidu-health.md", "interview-baidu-health"],
+    ["docs/interview/baidu-map-ugc.md", "interview-baidu-map-ugc"],
+    ["docs/interview/notes/langgraph-context-engineering.md", "interview-note-langgraph-context"],
+    ["docs/interview/notes/planner-deterministic-deep-dive.md", "interview-note-planner-deep-dive"],
+    ["docs/interview/notes/rag-hybrid-retrieval.md", "interview-note-rag-retrieval"],
+    ["docs/interview/notes/ugc-llm-judge-prompt.md", "interview-note-ugc-judge"],
     ["docs/review/README.md", "review-index"],
     ["docs/review/01-ai-agent-langgraph.md", "agent-runtime"],
     ["docs/review/02-rag-retrieval.md", "rag-retrieval"],
@@ -393,6 +493,16 @@ function normalizeInternalLinks(body) {
     ["docs/review/08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["docs/review/references.md", "references"],
     ["interview-qa.md", "interview-qa"],
+    ["artarch-ai.md", "interview-artarch"],
+    ["baidu-health.md", "interview-baidu-health"],
+    ["baidu-map-ugc.md", "interview-baidu-map-ugc"],
+    ["notes/langgraph-context-engineering.md", "interview-note-langgraph-context"],
+    ["notes/planner-deterministic-deep-dive.md", "interview-note-planner-deep-dive"],
+    ["notes/rag-hybrid-retrieval.md", "interview-note-rag-retrieval"],
+    ["notes/ugc-llm-judge-prompt.md", "interview-note-ugc-judge"],
+    ["../artarch-ai.md", "interview-artarch"],
+    ["../baidu-health.md", "interview-baidu-health"],
+    ["../baidu-map-ugc.md", "interview-baidu-map-ugc"],
     ["README.md", "review-index"],
     ["01-ai-agent-langgraph.md", "agent-runtime"],
     ["02-rag-retrieval.md", "rag-retrieval"],

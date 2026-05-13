@@ -580,3 +580,70 @@
   .markdown-body h2 { font-size: 24px; margin-top: 40px; padding-top: 26px; }
   .markdown-body h3 { font-size: 18px; }
 }
+
+/* ---------- term gloss tooltip ----------
+   {{term|译注}} in markdown becomes <abbr.term-gloss data-gloss="...">term</abbr>.
+   Hover (or focus on keyboard) shows a small inline gloss popover. */
+.markdown-body abbr.term-gloss {
+  position: relative;
+  display: inline;
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent, #6366f1);
+  cursor: help;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.markdown-body abbr.term-gloss::after {
+  content: attr(data-gloss);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #111113;
+  color: #fafaf7;
+  font-size: 12px;
+  font-weight: 400;
+  font-family: var(--font-sans, system-ui), sans-serif;
+  letter-spacing: 0;
+  line-height: 1.45;
+  white-space: nowrap;
+  max-width: 320px;
+  z-index: 30;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.markdown-body abbr.term-gloss::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 4px solid transparent;
+  border-top-color: #111113;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  z-index: 30;
+}
+
+.markdown-body abbr.term-gloss:hover::after,
+.markdown-body abbr.term-gloss:focus-visible::after,
+.markdown-body abbr.term-gloss:hover::before,
+.markdown-body abbr.term-gloss:focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 640px) {
+  .markdown-body abbr.term-gloss::after {
+    white-space: normal;
+    width: max-content;
+    max-width: min(280px, 80vw);
+  }
+}
