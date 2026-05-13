@@ -57,11 +57,11 @@ const categories = [
       { tone: "var(--tone-interview)", label: "ArtArch.AI · Agent Runtime", count: 1, href: reader("interview-artarch") },
       { tone: "#f59e0b",                 label: "百度健康助手 · 医疗 RAG",     count: 1, href: reader("interview-baidu-health") },
       { tone: "var(--tone-code)",        label: "百度地图 · UGC 机审",         count: 1, href: reader("interview-baidu-map-ugc") },
-      { tone: "var(--ink-3)",            label: "技术专题 Notes",              count: 4, href: reader("interview-note-langgraph-context") },
+      { tone: "var(--ink-3)",            label: "技术专题 Notes",              count: 5, href: reader("interview-note-langgraph-context") },
       { tone: "var(--ink-4)",            label: "旧版总览索引",                count: 1, href: reader("interview-qa") },
     ],
     cta: { label: "进入面试 Q&A 索引", href: reader("interview-artarch") },
-    count: 8,
+    count: 9,
   },
 ];
 
@@ -99,6 +99,7 @@ const paletteIndex = [
   { group: "面试",   label: "Notes · Planner + 确定性装配深度",    href: reader("interview-note-planner-deep-dive"), hint: "planner deterministic", tone: "var(--tone-interview)" },
   { group: "面试",   label: "Notes · 医疗 RAG 工程实现",           href: reader("interview-note-rag-retrieval"),     hint: "rag rerank bm25 dense", tone: "var(--tone-interview)" },
   { group: "面试",   label: "Notes · UGC LLM Judge Prompt",       href: reader("interview-note-ugc-judge"),         hint: "ugc judge prompt schema", tone: "var(--tone-interview)" },
+  { group: "面试",   label: "Notes · UGC Audit Agent 工具集",      href: reader("interview-note-ugc-agent"),         hint: "ugc agent orchestrator evaluator tools", tone: "var(--tone-interview)" },
   { group: "面试",   label: "旧版 · AI Agent 深度追问总览",        href: reader("interview-qa"),      hint: "qa overview",        tone: "var(--tone-interview)" },
   { group: "导航",   label: "回到首页",                        href: "#top",                       hint: "home",      tone: "var(--ink-3)" },
   { group: "导航",   label: "更新日志",                        href: "#feed",                      hint: "changelog", tone: "var(--ink-3)" },

@@ -172,6 +172,15 @@ const articles = {
     meta: ["16 min", "Notes", "LLM Judge"],
   },
 
+  "interview-note-ugc-agent": {
+    title: "UGC Audit Agent · 工具集与多 Agent 编排",
+    tag: "Interview · Notes",
+    path: "./docs/interview/notes/ugc-audit-agent-tools.md",
+    cover: "./assets/interview-baidu-map-ugc-architecture.png",
+    summary: "Orchestrator-Workers + Evaluator-Optimizer 模式落地：12 个工具 spec、read/write 分级、Plan-and-Execute 升级路径、5 类 Agent loop 失败模式。",
+    meta: ["20 min", "Notes", "Agent"],
+  },
+
   "review-index": {
     title: "复习路线与资料索引",
     tag: "Index",
@@ -249,6 +258,7 @@ const categoryGroups = [
       "interview-note-planner-deep-dive",
       "interview-note-rag-retrieval",
       "interview-note-ugc-judge",
+      "interview-note-ugc-agent",
     ],
   },
   {
@@ -482,6 +492,7 @@ function normalizeInternalLinks(body) {
     ["docs/interview/notes/planner-deterministic-deep-dive.md", "interview-note-planner-deep-dive"],
     ["docs/interview/notes/rag-hybrid-retrieval.md", "interview-note-rag-retrieval"],
     ["docs/interview/notes/ugc-llm-judge-prompt.md", "interview-note-ugc-judge"],
+    ["docs/interview/notes/ugc-audit-agent-tools.md", "interview-note-ugc-agent"],
     ["docs/review/README.md", "review-index"],
     ["docs/review/01-ai-agent-langgraph.md", "agent-runtime"],
     ["docs/review/02-rag-retrieval.md", "rag-retrieval"],
@@ -500,6 +511,7 @@ function normalizeInternalLinks(body) {
     ["notes/planner-deterministic-deep-dive.md", "interview-note-planner-deep-dive"],
     ["notes/rag-hybrid-retrieval.md", "interview-note-rag-retrieval"],
     ["notes/ugc-llm-judge-prompt.md", "interview-note-ugc-judge"],
+    ["notes/ugc-audit-agent-tools.md", "interview-note-ugc-agent"],
     ["../artarch-ai.md", "interview-artarch"],
     ["../baidu-health.md", "interview-baidu-health"],
     ["../baidu-map-ugc.md", "interview-baidu-map-ugc"],
