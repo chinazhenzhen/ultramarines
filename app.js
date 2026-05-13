@@ -62,7 +62,7 @@ const categories = [
 ];
 
 const feedEntries = [
-  { date: "2026-05-12", tag: "Review", tone: "var(--tone-code)", title: "How to Fix Your Context · LangGraph 上下文工程六法", meta: "30 min · context", href: reader("context-engineering") },
+  { date: "2026-05-12", tag: "Review", tone: "var(--tone-code)", title: "How to Fix Your Context · LangGraph 上下文工程六法", meta: "50 min · context", href: reader("context-engineering") },
   { date: "2026-05-12", tag: "Review", tone: "var(--tone-code)", title: "Vibe Coding 时代的工程师优势 · 退款需求规格拆解", meta: "24 min · requirements", href: reader("vibe-coding-spec") },
   { date: "2026-05-12", tag: "Review", tone: "var(--tone-review)", title: "重写复习索引：把 5 天复习节奏拆到每篇长文", meta: "8 min · plan", href: reader("review-index") },
   { date: "2026-05-12", tag: "Interview", tone: "var(--tone-interview)", title: "Agent 岗位深度追问手册更新 · 新增 SSE 重连与 K8s GPU 章节", meta: "45 min · qa", href: reader("interview-qa") },

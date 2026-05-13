@@ -2,7 +2,7 @@
 
 > 来源仓库：<https://github.com/chinazhenzhen/how_to_fix_your_context>  
 > 上游仓库：<https://github.com/langchain-ai/how_to_fix_your_context>  
-> 这篇是面试复习版整理：保留原图，提炼 6 种 context engineering 技术，并补充如果用 LangGraph 在生产 Agent 中实现时的伪代码。
+> 这篇是面试复习版整理：保留原图，提炼 6 种 context engineering 技术，并结合 `dag_engine/agent` 的运行时结构，补充 LangGraph 最佳实践、可落地架构和带中文注释的伪代码。
 
 ![图 1 - Drew Breunig 提出的上下文工程技术图谱，仓库 README 原图](../../assets/context-engineering-drew.png)
 
@@ -40,60 +40,166 @@ Karpathy 把 Context Engineering 描述成：把“下一步需要的正确信�
 
 ## 3. 总体 LangGraph 实现框架
 
-LangGraph 适合做上下文工程，是因为它把 Agent 拆成 `State + Node + Edge`：
+LangGraph 适合做上下文工程，不是因为它“自带聪明 agent”，而是因为它把一次 agent 运行拆成可观察、可恢复、可路由的 `State + Node + Edge`。这正好对应上下文工程的本质：每一步都决定“哪些信息进模型、哪些信息留在外部、哪些工具暴露、什么时候停下来问人”。
 
-1. `State` 保存可恢复的上下文结构，比如 messages、retrieved_docs、summary、selected_tools、scratchpad。
-2. `Node` 负责一个上下文操作，比如检索、裁剪、摘要、工具选择、写入外部存储。
-3. `Edge` 控制什么时候继续调用模型、什么时候调用工具、什么时候结束或进入人工确认。
-4. `Store` 保存跨会话记忆，`checkpointer` 保存线程内恢复点。
+官方文档里可以抽象出 8 个关键机制：
 
-一个通用骨架：
+| LangGraph 机制 | 对上下文工程的作用 | 典型 API / 概念 |
+|---|---|---|
+| 显式 `State` | 把上下文拆成结构化字段，避免全塞进 `messages` | `StateGraph(TypedDict/Pydantic/dataclass)`、reducers |
+| 条件路由 | 根据当前状态决定检索、选工具、摘要、回答或人工确认 | `add_conditional_edges`、`Command(goto=...)` |
+| 持久化检查点 | 线程内短期记忆、失败恢复、回放调试 | `compile(checkpointer=...)`、`thread_id`、`get_state_history` |
+| 长期存储 | 跨线程保存用户偏好、项目记忆、工具目录、规则索引 | `Store`、`namespace`、`key` |
+| 动态中断 | 不确定时暂停，等产品/用户补齐规格后再继续 | `interrupt()`、`Command(resume=..., update=...)` |
+| 流式事件 | 把 agent 正在做什么暴露给前端和 trace | `stream()`、`astream()`、`get_stream_writer()`、`stream_mode="custom"` |
+| 耐久执行 | 长流程中断后从检查点继续，避免重复副作用 | durable execution、idempotent task、durability modes |
+| 容错策略 | 给慢工具、外部 API、LLM 调用加超时和重试边界 | retry policy、timeout、error handler、resume-safe failure |
+
+这 8 个机制和 6 种 context engineering 方法可以这样对应：
+
+| 上下文问题 | LangGraph 解决方式 | 落地原则 |
+|---|---|---|
+| 缺信息 | RAG 节点检索，并把命中文档引用写入 state | 主模型只看精选证据，原始证据留 trace |
+| 工具太多 | 先 `select_tools`，再 `llm.bind_tools(selected)` | 工具 schema 也是上下文，不能全量暴露 |
+| 上下文冲突 | 按阶段、角色、子任务拆 subgraph/thread | supervisor 只看摘要和结果，不吃子 agent 的 scratchpad |
+| 检索噪音 | `prune_context` 节点抽取相关片段 | 删除噪音时保留 source id，方便回溯 |
+| 全都相关但太长 | `summarize_context` 维护结构化摘要 | 摘要要保留决策、约束、未决问题、来源 |
+| 不该进 prompt | Store / repository / object storage 外置 | prompt 里只放索引、引用和当前必要片段 |
+
+### 3.1 通用骨架
+
+下面这段伪代码表达的是“上下文构建器”模式：先规划上下文策略，再按策略检索、选工具、裁剪/摘要，最后才调用主模型。关键点是：LLM 调用不是图里的第一步，第一步应该是把上下文整理干净。
 
 ```python
-from typing import TypedDict, Literal
+from typing import Literal, TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import MessagesState
+from langgraph.types import Command
 
 class ContextState(MessagesState):
-    retrieved_docs: list[str]
+    # 当前会话/线程标识。生产里会映射到 config.configurable.thread_id。
+    session_id: str
+
+    # 当前业务阶段，例如 intent、storyboard、music、dag_draft。
+    # 阶段是 tool loadout 和 context quarantine 的重要输入。
+    stage: str
+
+    # 本轮用户真实意图。不要让后续节点反复从自然语言里猜。
+    intent: str
+
+    # 本轮要采用的上下文策略，例如 ["rag", "tool_loadout", "prune"]。
+    context_strategy: list[str]
+
+    # 检索命中的原始证据引用。这里存引用，不建议把长正文都放进 prompt。
+    retrieved_refs: list[dict]
+
+    # 已裁剪/压缩、允许进入主模型 prompt 的上下文包。
+    context_pack: dict
+
+    # 本轮允许暴露给模型的工具或工作流 ID。
     selected_tools: list[str]
-    summary: str
-    scratchpad: str
+
+    # 长会话摘要。它是短期记忆的一部分，由 checkpointer 保存。
+    running_summary: str
+
+    # token 预算。超过预算时触发 prune 或 summarize。
     context_budget: int
 
-def plan_next_step(state: ContextState) -> dict:
-    # 读 state.messages + summary，判断下一步要不要检索、调工具、摘要或结束
-    return {"route": "retrieve"}
+    # 等待用户补充的问题。非空时进入 interrupt。
+    missing_specs: list[str]
 
-def route(state: ContextState) -> Literal["retrieve", "select_tools", "answer", "summarize"]:
-    return state.get("route", "answer")
+def plan_context(state: ContextState) -> dict:
+    """根据意图、阶段、预算和缺口，决定本轮上下文策略。"""
+    strategy = []
+
+    # 需要外部知识、项目规则或模板时，先检索，不让主模型凭记忆猜。
+    if state["intent"] in {"question", "design", "modify_dag"}:
+        strategy.append("rag")
+
+    # 进入执行或生成阶段时，先缩小工具/工作流集合。
+    if state["stage"] in {"storyboard", "music", "dag_draft"}:
+        strategy.append("tool_loadout")
+
+    # prompt 预算超标时，先做裁剪；如果全部信息都相关，再做摘要。
+    if estimate_prompt_tokens(state) > state["context_budget"]:
+        strategy.extend(["prune", "summarize"])
+
+    # 如果需求缺关键规格，直接进入人工确认，不要让模型继续编。
+    missing = detect_missing_specs(state)
+    if missing:
+        strategy.append("interrupt_for_specs")
+
+    return {
+        "context_strategy": dedupe(strategy),
+        "missing_specs": missing,
+    }
+
+def route_context(state: ContextState) -> Literal[
+    "retrieve_context",
+    "select_tools",
+    "compress_context",
+    "ask_human",
+    "call_model",
+]:
+    """把策略转成下一步节点。真实项目里也可以返回 Send 做并行检索。"""
+    if "interrupt_for_specs" in state["context_strategy"]:
+        return "ask_human"
+    if "rag" in state["context_strategy"] and not state.get("retrieved_refs"):
+        return "retrieve_context"
+    if "tool_loadout" in state["context_strategy"] and not state.get("selected_tools"):
+        return "select_tools"
+    if needs_compression(state):
+        return "compress_context"
+    return "call_model"
+
+def ask_human(state: ContextState) -> Command[Literal["plan_context"]]:
+    """用 interrupt 暂停图执行，等待用户补齐不能由 AI 猜的规格。"""
+    answer = interrupt({
+        "kind": "missing_specs",
+        "stage": state["stage"],
+        "questions": state["missing_specs"],
+    })
+
+    # resume 后不要直接进模型，先把用户补充写回 state，再重新规划上下文。
+    return Command(
+        update={
+            "messages": [{"role": "user", "content": answer}],
+            "missing_specs": [],
+        },
+        goto="plan_context",
+    )
 
 builder = StateGraph(ContextState)
-builder.add_node("plan", plan_next_step)
-builder.add_node("retrieve", retrieve_context)
-builder.add_node("select_tools", select_relevant_tools)
-builder.add_node("summarize", summarize_context)
-builder.add_node("answer", call_llm)
+builder.add_node("plan_context", plan_context)
+builder.add_node("retrieve_context", retrieve_context)
+builder.add_node("select_tools", select_tools)
+builder.add_node("compress_context", compress_context)
+builder.add_node("ask_human", ask_human)
+builder.add_node("call_model", call_model)
 
-builder.add_edge(START, "plan")
-builder.add_conditional_edges("plan", route)
-builder.add_edge("retrieve", "answer")
-builder.add_edge("select_tools", "answer")
-builder.add_edge("summarize", "answer")
-builder.add_edge("answer", END)
+builder.add_edge(START, "plan_context")
+builder.add_conditional_edges("plan_context", route_context)
+builder.add_edge("retrieve_context", "plan_context")
+builder.add_edge("select_tools", "plan_context")
+builder.add_edge("compress_context", "plan_context")
+builder.add_edge("call_model", END)
 
 graph = builder.compile(checkpointer=checkpointer, store=store)
 ```
 
-关键设计点：
+### 3.2 为什么这比“一个大 prompt”可靠
 
-| 状态字段 | 为什么要显式保存 |
-|---|---|
-| `retrieved_docs` | 便于 trace、回放和评估检索质量 |
-| `selected_tools` | 便于解释为什么只暴露这些工具 |
-| `summary` | 便于恢复长会话，不依赖完整历史 |
-| `scratchpad` | 便于把中间研究计划和发现外置 |
-| `context_budget` | 便于按 token 预算触发 prune/summarize |
+一个大 prompt 的问题是所有信息都同权出现：历史对话、旧错误、工具 schema、检索噪音、业务规则、用户新需求混在一起。LangGraph 的好处是可以把它们拆成不同生命周期：
+
+| 生命周期 | 应该放哪里 | 例子 |
+|---|---|---|
+| 当前模型调用才需要 | 临时 `context_pack` | 本轮检索片段、当前 stage 的规则 |
+| 当前线程要恢复 | checkpoint state | `running_summary`、`pending_interrupt`、最近 messages |
+| 跨线程复用 | Store / repository | 用户偏好、项目设定、模板索引、规则库 |
+| 只做审计/回放 | event projection / trace | 原始工具结果、检索 hit、token 统计 |
+| 大对象 | object storage + ref | 文件全文、长日志、图片、视频生成结果 |
+
+所以生产 Agent 的上下文工程不是“给模型更多东西”，而是每个节点只读自己需要的结构化字段，只向 state 写必要更新，并把可重放证据留在外部存储里。
 
 ## 4. 方法一：RAG
 
@@ -570,77 +676,468 @@ flowchart TD
 | 代码库问答 | RAG + tool loadout + context pruning |
 | 多角色任务 | supervisor quarantine + shared final summary |
 
-## 11. 放到生产 Agent 里怎么设计
+## 11. 放到 `dag_engine/agent` 里怎么设计
 
-如果把这套方法放进你的 Agent Runtime，可以这样分层：
+`dag_engine/agent` 现在已经有一个很适合接上下文工程的骨架：
 
-```mermaid
-flowchart LR
-  U[User Turn] --> IR[Intent Router]
-  IR --> CB[Context Builder]
-  CB --> R[RAG / Tool Loadout]
-  CB --> M[Memory Read]
-  CB --> P[Prune / Summarize]
-  P --> G[LangGraph StateGraph]
-  G --> T[Tool / Sub-agent]
-  T --> O[Offload Trace / Scratchpad]
-  G --> A[Answer / DAG Draft / Action]
-```
+1. `AgentGraphRuntime` 用 `StateGraph` 组织节点，默认 `InMemorySaver`，生产可用 `PostgresSaver`。
+2. `handle_turn` / `stream_turn` 通过 `thread_id=session_id` 复用同一条 LangGraph 线程。
+3. `_node_await_user_turn` 已经使用 `interrupt()` 暂停，再用 `Command(resume=..., update=...)` 恢复。
+4. `_node_project_turn` 用 `get_stream_writer()` 发 `message.created`、`stage.changed`、`dag_draft.replaced` 等 custom events。
+5. `AgentGraphState` 已经把 `script_spec`、`workflow_plan`、`dag_current`、`messages`、`logs`、`pending_interrupt` 分成了结构化字段。
+6. `AgentRepository` 已经有 `session_projection`、`message_projection`、`event_projection`、`checkpoint_projection`，天然适合做 offloading 和回放。
 
-推荐 state：
+新架构图我放成了 PNG，方便单独打开放大看：
+
+![图 2 - dag_engine + LangGraph 上下文工程落地架构图](../../assets/context-engineering-dagengine-langgraph.png)
+
+单独打开原图：[`assets/context-engineering-dagengine-langgraph.png`](../../assets/context-engineering-dagengine-langgraph.png)
+
+### 11.1 现有结构和六法的映射
+
+| 六法 | `dag_engine/agent` 当前已有基础 | 可以补强的点 |
+|---|---|---|
+| RAG | `DraftRuleCatalog.get_planning_context()` 已经像规则检索入口 | 把检索命中拆成 `retrieved_refs`，区分原始证据和入模片段 |
+| Tool Loadout | `_resolve_workflow_plan_funcs()` 会把 symbolic workflow key 修成真实 registry ID | 在 LLM 生成前先 top-k 选择工作流/工具，避免把完整 registry 塞给模型 |
+| Context Quarantine | 图里已经按 `workflow_understanding`、`storyboard`、`music`、`dag_draft` 拆节点 | 进一步把 stage 变成 subgraph，stage 内 scratchpad 不直接污染全局 messages |
+| Context Pruning | planner payload 已有 repair/normalize 流程 | 对模板、规则、历史 messages 做入模前裁剪，保留 source refs |
+| Context Summarization | `build_session_summary()` 和 session projection 是摘要基础 | 增加 `running_summary` / `stage_summaries`，按 token 预算触发 |
+| Context Offloading | repository 已保存 state、messages、events、history | 大工具结果、长模板、完整 checkpoint history 只存引用，prompt 只放必要摘要 |
+
+### 11.2 推荐增加的 state 字段
+
+不要把所有东西都放进 `messages`。`messages` 只适合保存对话语义，不适合保存检索命中、工具目录、模板全文、长日志和每个 stage 的内部草稿。
 
 ```python
-class AgentContextState(MessagesState):
-    session_id: str
-    stage: str
-    intent: str
-    relevant_docs: list[DocRef]
+class AgentGraphState(TypedDict, total=False):
+    # 已有字段：session_id / user_id / project_id / stage / messages / script_spec / workflow_plan ...
+
+    # 本轮上下文策略。例：["rag", "tool_loadout", "prune", "interrupt_for_specs"]。
+    context_strategy: list[str]
+
+    # 检索命中引用。只保存 doc_id、source、score、chunk_id，不直接塞全文。
+    retrieved_refs: list[dict]
+
+    # 允许进入模型 prompt 的精选上下文。
+    # 这里可以放 stage_rules、workflow_candidates、recent_summary、user_constraints。
+    context_pack: dict
+
+    # 本轮可用的工具/工作流/节点函数 ID。
     selected_tools: list[str]
-    working_summary: str
-    scratchpad_ref: str
-    memory_refs: list[str]
-    token_budget: int
-    last_error: dict | None
+    selected_workflows: dict[str, str]
+
+    # 每个 stage 的结构化摘要，避免 storyboard 的细节污染 music 阶段。
+    stage_summaries: dict[str, str]
+
+    # 本轮未补齐的产品规格问题。非空时进入 interrupt。
+    missing_specs: list[dict]
+
+    # token 预算与实际消耗，用于触发 prune/summarize，也方便评估。
+    context_budget: int
+    context_metrics: dict
+
+    # 外部存储引用。大文本、模板全文、工具原始输出都放外部。
+    memory_refs: list[dict]
 ```
 
-推荐节点：
+### 11.3 推荐图结构
 
-| 节点 | 责任 |
-|---|---|
-| `classify_intent` | 判断当前用户 turn 是问答、修改、继续、取消还是执行动作 |
-| `select_context_strategy` | 决定用 RAG、tool loadout、summary、memory read 的哪几种 |
-| `retrieve_context` | 从知识库、代码库、业务库检索 |
-| `select_tools` | 根据 intent 和 stage 选择工具 |
-| `compress_context` | prune 或 summarize |
-| `call_model` | 只把整理后的上下文给主模型 |
-| `write_memory` | 把长期事实和阶段决策外置 |
-| `project_events` | 把上下文决策写入 trace，便于回放和评测 |
+现有图大致是：
 
-伪代码：
+```text
+START
+  -> ingest_turn
+  -> workflow_understanding / intent / format_confirm / synopsis_choice / core_elements / storyboard / music / transition_sfx / dag_draft
+  -> project_turn
+  -> await_user_turn
+  -> ingest_turn
+```
+
+可以改成：
+
+```text
+START
+  -> ingest_turn
+  -> context_plan
+  -> context_retrieve        # 可选：RAG / 规则 / 模板 / 项目记忆
+  -> context_loadout         # 可选：选择 workflow/tool/function
+  -> context_compress        # 可选：prune / summarize
+  -> context_gate            # 可选：缺规格就 interrupt
+  -> stage_subgraph          # workflow_understanding / storyboard / music / dag_draft ...
+  -> project_turn            # 写 projection、事件、checkpoint history
+  -> await_user_turn
+  -> ingest_turn
+```
+
+这里的关键变化是：每个业务 stage 之前先经过一层 Context Builder。主模型不直接面对全部历史、全部规则、全部工具，而是只接收 `context_pack`。
+
+### 11.4 详细伪代码：上下文计划节点
 
 ```python
-def select_context_strategy(state: AgentContextState) -> dict:
-    strategy = []
-    if state["intent"] in {"question", "research"}:
-        strategy.append("rag")
-    if state["stage"] in {"execution", "tool_use"}:
-        strategy.append("tool_loadout")
-    if estimate_tokens(state["messages"]) > state["token_budget"]:
-        strategy.append("summarize")
-    if needs_long_term_preference(state):
-        strategy.append("memory_read")
-    return {"context_strategy": strategy}
+from typing import Literal
+from langgraph.types import Command
+from langgraph.config import get_stream_writer
+from langgraph.graph import StateGraph, START
 
-def route_context(state: AgentContextState):
-    # 可以返回多个节点，也可以串行化为 retrieve -> select_tools -> compress
-    if "rag" in state["context_strategy"]:
-        return "retrieve_context"
-    if "tool_loadout" in state["context_strategy"]:
-        return "select_tools"
-    if "summarize" in state["context_strategy"]:
-        return "compress_context"
-    return "call_model"
+def _node_context_plan(state: AgentGraphState) -> dict:
+    """决定本轮需要哪些上下文处理步骤。
+
+    这个节点应该非常便宜，最好不用或少用大模型。
+    它只做分类、预算估算、缺口识别，不负责生成最终内容。
+    """
+    writer = get_stream_writer()
+
+    user_text = state.get("current_user_text", "")
+    stage = state.get("stage", "workflow_understanding")
+    script_spec = state.get("script_spec") or {}
+
+    strategy: list[str] = []
+    missing_specs: list[dict] = []
+
+    # 1. 判断是否需要 RAG。
+    # dag_engine 的 RAG 不一定是通用网页检索，更常见是：
+    # - 业务规则库：不同生成类型、比例、时长、镜头数的约束
+    # - 真实 draft 模板：已有作品的结构和节点组合
+    # - workflow registry：有哪些真实可执行工作流
+    if stage in {"workflow_understanding", "storyboard", "dag_draft"}:
+        strategy.append("rag")
+
+    # 2. 判断是否需要 Tool Loadout。
+    # 只要接下来会让模型选择 generation_node_func / sequence_node_func /
+    # audio_generation_node_func，就必须先缩小候选集合。
+    if stage in {"storyboard", "music", "transition_sfx", "dag_draft"}:
+        strategy.append("tool_loadout")
+
+    # 3. 判断是否需要 Pruning / Summarization。
+    # 注意这里不要只看 messages，也要看 script_spec、workflow_plan、模板候选和规则文本。
+    estimated = estimate_context_tokens(
+        messages=state.get("messages", []),
+        script_spec=script_spec,
+        workflow_plan=state.get("workflow_plan"),
+        context_pack=state.get("context_pack"),
+    )
+    budget = state.get("context_budget", 12_000)
+    if estimated > budget:
+        strategy.append("prune")
+    if estimated > budget * 1.5:
+        strategy.append("summarize")
+
+    # 4. 判断是否存在“不能由 AI 猜”的规格缺口。
+    # 例：用户只说“加个退款功能”，那必须问：
+    # - 是否支持部分退款？
+    # - 优惠券、积分、满减如何回滚？
+    # - 多次退款的幂等键是什么？
+    # - 超时、失败、人工审核怎么处理？
+    # 对 dag_engine 来说，同类问题是：用户只说“做一个广告片”，但没说比例、时长、
+    # 镜头数量、品牌调性、禁用元素、是否需要旁白，这些都不应该让模型硬编。
+    missing_specs = detect_missing_script_specs(stage, user_text, script_spec)
+    if missing_specs:
+        strategy.append("interrupt_for_specs")
+
+    writer({
+        "type": "context.plan",
+        "stage": stage,
+        "strategy": strategy,
+        "estimated_tokens": estimated,
+        "budget": budget,
+        "missing_specs": missing_specs,
+    })
+
+    return {
+        "context_strategy": dedupe(strategy),
+        "missing_specs": missing_specs,
+        "context_metrics": {
+            **state.get("context_metrics", {}),
+            "estimated_tokens_before": estimated,
+        },
+    }
 ```
+
+### 11.5 详细伪代码：RAG + Tool Loadout
+
+```python
+def _node_context_retrieve(state: AgentGraphState) -> dict:
+    """从规则库、模板库、项目记忆里取候选证据。
+
+    原则：
+    1. 这里可以取多一点，但不要全给模型。
+    2. 原始命中保存到 refs，方便 trace 和回放。
+    3. 真正进入 prompt 的内容后面由 prune 节点决定。
+    """
+    stage = state["stage"]
+    script_spec = state.get("script_spec") or {}
+    user_text = state.get("current_user_text", "")
+
+    # 读取 dag_engine 已有的 planning context。
+    # 这一步对应现在的 self.ops.draft_rule_catalog.get_planning_context(...)
+    planning_context = self.ops.draft_rule_catalog.get_planning_context(script_spec)
+
+    # 检索项目级记忆，例如品牌约束、用户偏好、历史已确认设定。
+    # 如果使用 LangGraph Store，namespace 应按 user/project/stage 分层。
+    project_memories = store.search(
+        ("project_memory", state["project_id"], stage),
+        query=user_text,
+        limit=8,
+    )
+
+    # 检索真实 draft pattern，避免模型只凭语言描述 invent 节点结构。
+    draft_patterns = self.ops.load_real_draft_patterns(
+        generation_type=script_spec.get("generation_type"),
+        aspect_ratio=script_spec.get("aspect_ratio"),
+        limit=12,
+    )
+
+    refs = []
+    refs.extend(to_refs("planning_context", planning_context))
+    refs.extend(to_refs("project_memory", project_memories))
+    refs.extend(to_refs("draft_pattern", draft_patterns))
+
+    return {
+        "retrieved_refs": refs,
+        "context_pack": {
+            **state.get("context_pack", {}),
+            # 这里只放短摘要，完整内容通过 ref 回查。
+            "planning_context_summary": summarize_planning_context(planning_context),
+            "memory_hits": [short_memory(hit) for hit in project_memories],
+            "draft_pattern_candidates": [short_pattern(p) for p in draft_patterns],
+        },
+    }
+
+def _node_context_loadout(state: AgentGraphState) -> dict:
+    """从完整 workflow registry 里选出本轮允许模型看到的候选。
+
+    这一步是 Tool Loadout 在 dag_engine 里的核心。
+    不要把所有 generation/sequence/audio workflow 都塞进 prompt。
+    """
+    stage = state["stage"]
+    script_spec = state.get("script_spec") or {}
+    planning_summary = state.get("context_pack", {}).get("planning_context_summary", "")
+
+    # 1. 先按硬条件过滤：生成类型、是否需要图片输入、是否支持视频/音频、比例、时长等。
+    hard_filtered = filter_workflows_by_capability(
+        registry=self.ops.workflow_registry,
+        generation_type=script_spec.get("generation_type"),
+        requires_image=bool(script_spec.get("reference_image")),
+        stage=stage,
+    )
+
+    # 2. 再按语义相关性排序：用户需求、stage、规则摘要、历史选择共同决定 top-k。
+    ranked = rank_workflows(
+        candidates=hard_filtered,
+        query=build_workflow_query(state, planning_summary),
+        limit=8,
+    )
+
+    # 3. 输出给模型的是少量候选 ID + 短描述，不是完整 Python 函数或全量 registry。
+    selected = {
+        item.kind: item.workflow_id
+        for item in ranked
+        if item.kind in {"generation", "sequence", "audio"}
+    }
+
+    return {
+        "selected_workflows": selected,
+        "selected_tools": [item.workflow_id for item in ranked],
+        "context_pack": {
+            **state.get("context_pack", {}),
+            "workflow_candidates": [
+                {
+                    "id": item.workflow_id,
+                    "kind": item.kind,
+                    "capabilities": item.capabilities,
+                    "why_selected": item.reason,
+                }
+                for item in ranked
+            ],
+        },
+    }
+```
+
+### 11.6 详细伪代码：Pruning + Summarization
+
+```python
+def _node_context_compress(state: AgentGraphState) -> dict:
+    """把 context_pack 压到预算内。
+
+    Pruning 和 Summarization 的区别：
+    - pruning：删除与本轮 stage 无关的内容；
+    - summarization：相关内容太长时压缩，但保留决策和约束。
+    """
+    stage = state["stage"]
+    context_pack = state.get("context_pack", {})
+    budget = state.get("context_budget", 12_000)
+
+    # 1. pruning：只保留当前 stage 必需字段。
+    # 例如 music 阶段不需要完整 storyboard 推理链，只需要镜头节奏、情绪、时长。
+    pruned_pack = prune_context_pack(
+        context_pack,
+        keep_rules=[
+            "保留用户明确要求",
+            "保留已经确认的 script_spec",
+            "保留当前 stage 直接相关的 workflow_candidates",
+            "保留会影响 DAG 正确性的限制",
+            "删除历史闲聊、重复模板、无关 stage 的 scratchpad",
+        ],
+        stage=stage,
+    )
+
+    # 2. summarization：如果裁剪后仍超预算，生成结构化摘要。
+    # 摘要必须是结构化字段，不能只是一段自然语言。
+    if estimate_tokens(pruned_pack) > budget:
+        stage_summary = cheap_llm.invoke({
+            "task": "summarize_dag_engine_context",
+            "stage": stage,
+            "schema": {
+                "user_goal": "用户最终要什么",
+                "confirmed_specs": "已经确认的规格",
+                "open_questions": "仍未确认的问题",
+                "workflow_constraints": "工作流选择限制",
+                "draft_constraints": "DAG 生成必须遵守的限制",
+                "source_refs": "摘要依据哪些 retrieved_refs",
+            },
+            "content": pruned_pack,
+        }).parsed
+
+        pruned_pack = {
+            "stage_summary": stage_summary,
+            "workflow_candidates": pruned_pack.get("workflow_candidates", []),
+            "source_refs": stage_summary["source_refs"],
+        }
+
+    return {
+        "context_pack": pruned_pack,
+        "stage_summaries": {
+            **state.get("stage_summaries", {}),
+            stage: render_stage_summary(pruned_pack),
+        },
+        "context_metrics": {
+            **state.get("context_metrics", {}),
+            "estimated_tokens_after": estimate_tokens(pruned_pack),
+        },
+    }
+```
+
+### 11.7 详细伪代码：人工确认和恢复
+
+`dag_engine` 已经有 `pending_interrupt` 和 `_node_await_user_turn`。建议把它从“等下一轮用户输入”扩展成更明确的规格确认机制：当问题不能由 AI 可靠推断时，生成结构化问题，用户回答后通过 `Command(resume=..., update=...)` 回写 state，再重新进入 `context_plan`。
+
+```python
+def _node_context_gate(state: AgentGraphState) -> Command[Literal["context_plan", "stage_router"]]:
+    """决定是否需要暂停等待用户补充。
+
+    用在“产品一句话不是需求”的场景：
+    AI 可以帮忙发现缺口，但不能替产品经理决定业务规则。
+    """
+    missing_specs = state.get("missing_specs") or []
+    if not missing_specs:
+        return Command(goto="stage_router")
+
+    # interrupt 的 payload 必须 JSON serializable。
+    # 前端可以把它渲染成问题列表、单选、多选或自由输入表单。
+    user_answer = interrupt({
+        "kind": "spec_clarification",
+        "stage": state["stage"],
+        "questions": missing_specs,
+        "why_blocked": "这些规格会影响 DAG 结构或工作流选择，不能由模型猜测。",
+    })
+
+    # 恢复后先把用户回答合并进 script_spec，不要直接继续生成。
+    # 因为新答案可能改变 RAG、tool loadout 和 pruning 的结果。
+    updated_spec = merge_spec_answers(
+        old_spec=state.get("script_spec", {}),
+        answers=user_answer,
+    )
+
+    return Command(
+        update={
+            "script_spec": updated_spec,
+            "missing_specs": [],
+            "current_user_text": normalize_user_answer(user_answer),
+        },
+        goto="context_plan",
+    )
+```
+
+### 11.8 详细伪代码：stage 隔离和结果投影
+
+```python
+def _node_stage_router(state: AgentGraphState) -> str:
+    """把当前 turn 路由到具体业务 stage。
+
+    这里沿用 dag_engine 现有 stage：
+    workflow_understanding / intent / format_confirm / synopsis_choice /
+    core_elements / storyboard / music / transition_sfx / dag_draft。
+    """
+    return state.get("stage", "workflow_understanding")
+
+def _node_storyboard(state: AgentGraphState) -> dict:
+    """storyboard 阶段只读它需要的上下文。
+
+    不读取完整历史，不读取 music 的 scratchpad，不读取无关工具目录。
+    这就是 Context Quarantine。
+    """
+    prompt_context = {
+        "user_goal": state["context_pack"].get("stage_summary", {}).get("user_goal"),
+        "script_spec": state.get("script_spec", {}),
+        "workflow_candidates": state["context_pack"].get("workflow_candidates", []),
+        "recent_messages": trim_recent_messages(state.get("messages", []), keep_last=4),
+        "storyboard_rules": state["context_pack"].get("storyboard_rules", []),
+    }
+
+    # 调用 orchestrator 时，只传 prompt_context，而不是整个 state。
+    payload = self.ops.plan_storyboard(prompt_context)
+
+    # stage 节点只返回结构化更新。
+    # 真实 workflow ID 的校验仍交给 _repair_planner_payload / _resolve_workflow_plan_funcs。
+    return self.ops._apply_workflow_payload(
+        session=state_to_session_model(state),
+        payload=payload,
+        planning_context=state["context_pack"].get("planning_context_summary"),
+    )
+
+def _node_project_turn(state: AgentGraphState) -> dict:
+    """把可查的结果投影到 repository。
+
+    这一步要按 current_run_id 做幂等，避免 durable resume 后重复写 event/message。
+    """
+    run_id = state.get("current_run_id")
+
+    self.repository.save_state(
+        session_id=state["session_id"],
+        state=state_to_session_payload(state),
+        idempotency_key=f"state:{state['session_id']}:{run_id}",
+    )
+
+    self.repository.append_event(
+        session_id=state["session_id"],
+        event={
+            "type": "context.metrics",
+            "run_id": run_id,
+            "strategy": state.get("context_strategy", []),
+            "metrics": state.get("context_metrics", {}),
+            "retrieved_refs": state.get("retrieved_refs", []),
+        },
+        idempotency_key=f"event:context.metrics:{run_id}",
+    )
+
+    # checkpoint history 用于 time travel / debug / eval。
+    # 这里保存的是投影，不要替代 LangGraph checkpointer。
+    history = self.graph.get_state_history(self._thread_config(state["session_id"]))
+    self.repository.save_history(state["session_id"], history)
+
+    return finalize_turn_update(state)
+```
+
+### 11.9 生产注意事项
+
+1. `thread_id=session_id` 必须稳定。换了 `thread_id`，checkpointer 就无法恢复同一条会话。
+2. `interrupt()` 前面的副作用要么没有，要么幂等。官方文档明确说恢复时节点会从头执行，不是从 `interrupt()` 那一行继续。
+3. `_node_project_turn` 这类写数据库的节点要用 `current_run_id`、event id 或业务 idempotency key，避免失败恢复时重复写消息。
+4. `Store` 和 `checkpointer` 不要混用职责：checkpointer 管线程内状态恢复，Store 管跨线程长期记忆，repository projection 管查询和 UI。
+5. `get_stream_writer()` 只发进度和可视化事件，不要把它当状态存储；真正要恢复的内容必须写进 state、Store 或 repository。
+6. 工具选择、workflow 选择、模型选择都应该发生在模型调用前。让模型在完整 registry 中“自己看着办”，就是把 tool loadout 问题推给了 LLM。
+7. Pruning 节点不能丢失可审计性：入模片段可以删减，但 `retrieved_refs` 要保留原始 source、score、chunk id。
+8. 摘要必须结构化。`User goal / Confirmed specs / Open questions / Constraints / Source refs` 比一段散文摘要更适合恢复。
 
 ## 12. 面试答法
 
@@ -698,3 +1195,11 @@ def route_context(state: AgentContextState):
 - Drew Breunig, How Contexts Fail and How to Fix Them：<https://www.dbreunig.com/2025/06/22/how-contexts-fail-and-how-to-fix-them.html>
 - LangChain Blog, Context Engineering for Agents：<https://blog.langchain.com/context-engineering-for-agents/>
 - Chroma Research, Context Rot：<https://research.trychroma.com/context-rot>
+- LangChain Docs, Context engineering in agents：<https://docs.langchain.com/oss/python/langchain/context-engineering>
+- LangGraph Docs, Graph API：<https://docs.langchain.com/oss/python/langgraph/graph-api>
+- LangGraph Docs, Persistence：<https://docs.langchain.com/oss/python/langgraph/persistence>
+- LangGraph Docs, Interrupts：<https://docs.langchain.com/oss/python/langgraph/interrupts>
+- LangGraph Docs, Streaming：<https://docs.langchain.com/oss/python/langgraph/streaming>
+- LangGraph Docs, Long-term memory：<https://docs.langchain.com/oss/python/langchain/long-term-memory>
+- LangGraph Docs, Durable execution：<https://docs.langchain.com/oss/python/langgraph/durable-execution>
+- LangGraph Docs, Fault tolerance：<https://docs.langchain.com/oss/python/langgraph/fault-tolerance>

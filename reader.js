@@ -87,8 +87,8 @@ const articles = {
     tag: "LLM Ops",
     path: "./docs/review/10-context-engineering-langgraph.md",
     cover: "./assets/context-engineering-drew.png",
-    summary: "整理 LangChain 的 how_to_fix_your_context 仓库：RAG、Tool Loadout、Quarantine、Pruning、Summarization、Offloading，并补充 LangGraph 伪代码。",
-    meta: ["30 min", "LLM Ops", "Context"],
+    summary: "整理 how_to_fix_your_context：六种上下文工程方法、LangGraph 最佳实践、dag_engine/agent 落地架构和带中文注释的伪代码。",
+    meta: ["50 min", "LLM Ops", "Context"],
   },
 
   "cloud-native": {
