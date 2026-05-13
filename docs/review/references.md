@@ -48,6 +48,15 @@
 - 程序员Carl：Vibe Coding 时代工程师优势访谈题：<https://mp.weixin.qq.com/s/TD4QN-14GGTWdUHK5E9Dxw>
   看 AI 辅助编程下的问题定义、上下文构建、结果验证、技术决策和 Token 成本控制。
 
+- LangChain how_to_fix_your_context：<https://github.com/langchain-ai/how_to_fix_your_context>
+  看 6 种上下文工程方法如何用 LangGraph notebook 实现。
+
+- Drew Breunig How to Fix Your Context：<https://www.dbreunig.com/2025/06/26/how-to-fix-your-context.html>
+  看 RAG、Tool Loadout、Context Quarantine、Pruning、Summarization、Offloading 的原始分类。
+
+- Chroma Context Rot：<https://research.trychroma.com/context-rot>
+  看长上下文性能退化和 context rot 的实验背景。
+
 - Gemini Structured Outputs：<https://ai.google.dev/gemini-api/docs/structured-output>  
   看 JSON Schema、Pydantic/Zod、streaming structured output、限制和 best practices。
 

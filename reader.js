@@ -82,6 +82,15 @@ const articles = {
     meta: ["24 min", "LLM Ops", "Requirements"],
   },
 
+  "context-engineering": {
+    title: "How to Fix Your Context：上下文工程六法",
+    tag: "LLM Ops",
+    path: "./docs/review/10-context-engineering-langgraph.md",
+    cover: "./assets/context-engineering-drew.png",
+    summary: "整理 LangChain 的 how_to_fix_your_context 仓库：RAG、Tool Loadout、Quarantine、Pruning、Summarization、Offloading，并补充 LangGraph 伪代码。",
+    meta: ["30 min", "LLM Ops", "Context"],
+  },
+
   "cloud-native": {
     title: "后端架构、SSE、Kubernetes GPU 与 Operator",
     tag: "Backend",
@@ -149,7 +158,7 @@ const categoryGroups = [
     key: "llmops",
     title: "LLM Ops",
     tone: "var(--tone-code)",
-    docs: ["llm-observability", "tool-calling-mcp", "vibe-coding-spec"],
+    docs: ["llm-observability", "tool-calling-mcp", "vibe-coding-spec", "context-engineering"],
   },
   {
     key: "infra",
