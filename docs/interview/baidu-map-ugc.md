@@ -490,17 +490,17 @@ class PhoneLookupResult(BaseModel):
 
 class PhoneLookupRAGImpl:
     """
-    召回链路：
+    多源召回链路：
     1) ES 索引：phone -> [(poi_id, bind_at, unbind_at, source)]
-       按时间 desc 召回，限制 50 条
-    2) Faiss 索引：phone embedding（基于号段、归属地、行业 one-hot 等）
-       做相似可疑号码召回（用于发现「号码池」）
-    3) 黑名单 KV
+       按时间 desc 召回，限制 50 条（结构化精确匹配）
+    2) Milvus 向量索引：phone behavioral embedding ANN 检索
+       做相似可疑号码召回（核心：发现「号码池」黑产）
+    3) 黑名单 KV（Redis）
     4) 工商库（如果合规允许）keyword 检索
     5) 用户行为表 OLAP
     """
     async def run(self, number: str, poi_ctx: POI) -> PhoneLookupResult:
-        bound_pois, segment_class, blacklist_hits, geo_match, swap, biz, ucnt = \
+        bound_pois, segment_class, blacklist_hits, geo_match, swap, biz, ucnt, pool = \
             await asyncio.gather(
                 self._es_phone_bindings(number),
                 self._segment_classify(number),
@@ -509,16 +509,85 @@ class PhoneLookupRAGImpl:
                 self._swap_event_check(number, poi_ctx.poi_id),
                 self._business_registry(number),
                 self._user_cross_report(number),
+                self._milvus_pool_neighbors(number),  # 见下方
             )
         return PhoneLookupResult(...)
 ```
 
-**Orchestrator 看到 PhoneLookupResult 后怎么用？**
+#### Milvus 在虚假电话识别里到底解决什么问题
+
+电话号码本身没有「语义」，但**黑产号码的「行为指纹」高度相似**：
+
+- 同一号码池里的号通常**号段集中**（同一卡商批发 170/171/166）
+- **归属地分布相似**（同省同市 / 跨省漂移规律）
+- **行业绑定历史相似**（都在「医美 / 装修 / 二手车」反复出现）
+- **关联用户重叠**（同一批账号在不同号上反复出现）
+- **生命周期相似**（活跃 30-60 天后集体废弃）
+
+把这些信号拼成 **128 维「号码行为向量」** 入 Milvus，ANN 检索就能在线找到「行为最像的 50 个号码」。如果一个新上报号码的近邻里有 ≥ 10 个已被标记黑产 → 强信号说明它属于同一号码池。
+
+```python
+def build_phone_behavior_vector(number: str) -> np.ndarray:
+    """128 维行为向量。每天 daily job 增量更新到 Milvus。"""
+    return np.concatenate([
+        segment_one_hot(number),                  # 32 维：号段类别
+        carrier_region_embedding(number),         # 24 维：归属地 + 运营商
+        industry_distribution_top5(number),       # 20 维：历史绑定行业 top-5 softmax
+        temporal_features(number),                # 16 维：活跃天数 / 漂移频次 / 上下线节奏
+        user_overlap_signature(number),           # 24 维：关联用户的设备指纹聚类
+        report_pattern_signature(number),         # 12 维：被上报频次 / 通过率 / 申诉率
+    ])
+
+async def _milvus_pool_neighbors(self, number: str) -> PoolNeighbors:
+    vec = await self.feature_store.get_or_build(number)
+    # Milvus collection: "phone_behavior_v3"
+    # index: HNSW (M=32, efConstruction=200), metric=COSINE
+    # partition: by carrier_region 大区，提升 filter+ANN 性能
+    results = await self.milvus.search(
+        collection="phone_behavior_v3",
+        data=[vec],
+        anns_field="behavior_emb",
+        param={"metric_type": "COSINE", "params": {"ef": 64}},
+        limit=50,
+        expr=f'carrier_region == "{number_region(number)}"',  # 大区 filter，缩小搜索集
+        output_fields=["phone", "blacklist_label", "first_seen", "cluster_id"],
+    )
+    return PoolNeighbors(
+        neighbors=results,
+        blacklist_hit_rate=mean(r.blacklist_label for r in results),
+        same_cluster_count=sum(1 for r in results if r.cluster_id == known_pool_cluster),
+    )
+```
+
+**为什么这里选 Milvus 而不是继续用 Faiss / ES Dense / pgvector？**
+
+| 维度 | Faiss（本地） | ES Dense | pgvector | **Milvus** |
+|---|---|---|---|---|
+| 规模 | 单机 ~亿 | ~亿 | ~千万 | **十亿级 + 分布式** |
+| 在线增量 | 弱（要全量 rebuild） | 中 | 强 | **强（DML + 实时入库）** |
+| Filter + ANN | 弱（先 ANN 后过滤，召回掉精度）| 中 | 弱 | **原生 hybrid search（vector + scalar filter 同步执行）** |
+| 多版本 / 灰度 | 自己管 | 自己管 | 自己管 | **Collection / Partition / Alias 一等公民** |
+| 一致性 | 内存 | 准实时 | 同步 | **可配置（eventually / bounded / strong）** |
+| 元数据召回 | 另存 | 强 | 强 | **fields + dynamic fields，结果直接带业务标签** |
+
+我们这个场景的关键诉求：
+
+1. **十亿级号码**：百度地图 POI 涉及的电话量级太大，Faiss 单机扛不住，必须分布式。
+2. **大区 filter + ANN**：要按归属地 / 运营商先过滤再 ANN，Milvus 的 `expr` 同步执行不会掉召回，Faiss 做不到。
+3. **每天 daily job 增量入库**：新号码 / 新黑名单标签持续滚动，Milvus 的 upsert + 实时索引最合适。
+4. **多模型版本灰度**：行为向量 v2 → v3 升级要双跑，Milvus 用 Collection Alias 切换零下线，Faiss 要重建。
+5. **结果直接带 cluster_id / blacklist_label**：output_fields 把业务标签和 ANN 结果一起拿回来，少一次回表。
+
+简历里写了「简单了解 Milvus / Qdrant / pgvector 与 HNSW / IVF 调优」，**这块是我深度落地过的场景**，可以扣到 HNSW 参数（M=32 平衡内存 / 召回，efConstruction=200 提升建图质量，在线 ef=64 兼顾 P95 延迟）、partition 策略（按大区）、collection 版本管理。
+
+#### Orchestrator 看到 PhoneLookupResult 后怎么用？
 
 ```text
 若 bound_pois 跨行业 ≥ 3：reject + reason=phone_multi_binding
 若 number_segment_class != normal：降低 confidence，require 街景 + 工商二次确认
 若 blacklist_hits_180d ≥ 5：reject + reason=phone_known_fake
+若 milvus_neighbors.blacklist_hit_rate > 0.3 或 same_cluster_count >= 10：
+    reject + reason=phone_pool_neighbor，并把该号码送离线团伙挖掘 pipeline
 若 geographic_consistency < 0.3：require crossref 第三方平台
 若 user_cross_report_count_24h ≥ 3：可疑黑产，转 Layer 4
 ```
@@ -531,11 +600,13 @@ class PhoneLookupRAGImpl:
 
 - 不同上报需要不同工具组合（号段足够时不用调街景）
 - 召回链路本身就是 RAG（多源异构索引并发召回 + 结构化结果）
+- **Milvus 这部分还顺带把「向量 RAG」用在非 NLP 场景，把行为指纹 ANN 当成全局上下文召回器**
 - 结果可解释、可审计（每条 evidence 都来自具名工具，不是 LLM 编的）
 
 > **发散 tip：**
-> - 「电话识别是我特别喜欢拿来证明『Agent + RAG 不是 chat bot 的专属』的 case。**RAG 不一定要做语义检索**，结构化 + 时序 + 多源召回也是 RAG。可以延伸到 Anthropic 在 Citations API 强调的『把每个事实都映射到 source』的思路。」
-> - 「这套做完后，号码池黑产识别率提升 60%+，因为单次 prompt 模型根本看不到『同一号码在 N 个 POI 出现』这种全局视角。」
+> - 「电话识别是我特别喜欢拿来证明『Agent + RAG 不是 chat bot 的专属』的 case。**RAG 不一定是文本检索**，把行为信号建成向量入 Milvus 做 ANN，也是 RAG。可以延伸到 Anthropic 在 Citations API 强调的『把每个事实都映射到 source』的思路。」
+> - 「Milvus 在这套架构里的关键价值是 **hybrid search（filter + ANN 同步执行）和 Collection Alias 多版本灰度**。这两个能力是 Faiss / pgvector 短板，但在线 fraud detection 又必须用。」
+> - 「这套做完后，号码池黑产识别率提升 60%+，因为单次 prompt 模型根本看不到『同一号码在 N 个 POI 出现 + 行为指纹和已知黑产池高相似』这种全局视角。」
 
 ---
 

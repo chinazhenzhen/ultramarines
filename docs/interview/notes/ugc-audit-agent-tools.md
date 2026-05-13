@@ -30,7 +30,7 @@ UGC 机审完全命中：
 
 | 工具 | 用途 | 实现 |
 |---|---|---|
-| `phone_lookup_rag` | 电话号码多源验证（绑定、号段、黑名单、归属地、注册库、用户跨报） | ES + Faiss + KV + OLAP 并发召回 |
+| `phone_lookup_rag` | 电话号码多源验证（绑定、号段、黑名单、归属地、注册库、用户跨报、**号码池行为向量 ANN**） | ES（精确） + **Milvus（行为向量 ANN）** + Redis KV + OLAP 并发召回，详见主文 Q5 |
 | `poi_history_rag` | POI 近 90 天变更轨迹、上报来源分布 | ES 时序索引 |
 | `similar_report_cluster` | 同 POI / 同区域 / 同诉求的报告聚类 | OLAP + DBSCAN 在线 |
 | `user_reputation_query` | 用户 6 维信誉向量 | feature store 查询 |
@@ -260,8 +260,30 @@ OpenAI 在 GPT-5 system card 强调：**任何会产生不可逆 / 高影响后�
 
 ---
 
-## 10. 一句话总结
+## 10. 向量数据库选型补录：为什么 phone_lookup_rag 用 Milvus
+
+UGC Audit Agent 的所有「向量召回」类工具（电话行为池、image_reverse_search、similar_poi_geo_cluster、user_behavior_sequence 聚类）统一走 Milvus。原因：
+
+1. **十亿级规模 + 分布式**：Faiss 单机扛不住电话池 + 图片 + 用户行为的合计规模，Milvus 原生支持分布式 + 水平扩展。
+2. **Hybrid Search（filter + ANN 同步执行）**：电话场景按「大区」filter，图片场景按「图类型 + 上传时段」filter，pgvector / ES Dense 都是先 ANN 后过滤，召回会塌；Milvus 的 `expr` 在 search 时同步执行，召回不掉。
+3. **Collection / Partition / Alias**：行为向量模型升级（v2 → v3）用 Collection Alias 切换，零下线灰度。Faiss / pgvector 做版本切换都要手工导。
+4. **实时增量 + DML**：黑名单标签每天滚动入库，Milvus 的 upsert 友好，索引秒级生效。
+5. **元数据 output_fields**：ANN 结果直接带 `blacklist_label / cluster_id / first_seen`，省一次回表。
+
+调参实战：
+
+| 索引类型 | 参数 | 适用场景 |
+|---|---|---|
+| HNSW | M=32, efConstruction=200, online ef=64 | 高召回 + 低延迟（电话行为池、图片反查） |
+| IVF_PQ | nlist=4096, nprobe=32, m=16 | 大规模 + 内存敏感（用户行为 ~10 亿条 fingerprint） |
+| DISKANN | search_list_size=100 | 超大规模冷数据 |
+
+> Anthropic 没有专门给「向量 DB 该用哪个」的规范，但 *Building Effective Agents* 反复强调 **「工具实现层的质量决定 Agent 上限」**。Milvus 选对，电话池识别召回率直接 +60%；选错（比如硬扛 Faiss），Agent 看到的全是失真证据。
+
+---
+
+## 11. 一句话总结
 
 > **UGC 机审之所以适合上 Agent，不是因为「LLM 厉害」，而是因为「每条上报需要的证据组合不一样，必须动态决定调什么工具」**。这是 Anthropic 给 Agent 适用场景的硬判据，我们的实践完全契合。
 >
-> Agent 的能力上限 = **工具集质量 × Orchestrator 调度能力 × Evaluator 独立性**。三者缺一不可。
+> Agent 的能力上限 = **工具集质量 × Orchestrator 调度能力 × Evaluator 独立性**。三者缺一不可，**工具实现层（包括 Milvus 这类向量基建）的质量决定上限里的工具集那一项**。
