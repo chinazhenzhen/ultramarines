@@ -30,12 +30,12 @@ const categories = [
     groups: [
       { tone: "#6366f1", label: "Foundations", count: 1, href: reader("transformer-fundamentals") },
       { tone: "var(--tone-review)", label: "Agent Runtime", count: 2, href: reader("agent-runtime") },
-      { tone: "#f59e0b", label: "Retrieval · RAG", count: 3, href: reader("rag-retrieval") },
+      { tone: "#f59e0b", label: "Retrieval · RAG", count: 4, href: reader("rag-retrieval") },
       { tone: "var(--tone-code)", label: "LLM Ops", count: 4, href: reader("llm-observability") },
       { tone: "#8b5cf6", label: "Backend · Infra", count: 1, href: reader("cloud-native") },
     ],
     cta: { label: "进入复习索引", href: reader("review-index") },
-    count: 11,
+    count: 12,
   },
   {
     key: "code",
@@ -66,6 +66,7 @@ const categories = [
 ];
 
 const feedEntries = [
+  { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "Elasticsearch 在 RAG 与 Agent 工程里的落地（含 13 题 Q&A）", meta: "35 min · retrieval", href: reader("elasticsearch-rag-agent") },
   { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "Chunking 策略：RAG 里最被低估的工程模块（落地深扣）", meta: "32 min · retrieval", href: reader("chunking-strategy") },
   { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "RAG / Vector DB 复习长文升级：真实 pipeline 代码 + 服务化部署 + 三层缓存", meta: "30 min · retrieval", href: reader("vector-db-reranker") },
   { date: "2026-05-13", tag: "Interview", tone: "var(--tone-interview)", title: "面试 Q&A 重构：按项目拆成 3 篇独立 Q&A + 4 篇技术专题", meta: "55 min · qa", href: reader("interview-artarch") },
@@ -90,6 +91,7 @@ const paletteIndex = [
   { group: "复习",   label: "RAG、混合检索与医疗问答",         href: reader("rag-retrieval"),     hint: "rag",       tone: "var(--tone-review)" },
   { group: "复习",   label: "Vector DB 选型 + Reranker 深入",   href: reader("vector-db-reranker"), hint: "vector db reranker pgvector milvus qdrant tei cache", tone: "var(--tone-review)" },
   { group: "复习",   label: "Chunking 策略：RAG 工程落地",      href: reader("chunking-strategy"),  hint: "chunking parent contextual retrieval anthropic semantic", tone: "var(--tone-review)" },
+  { group: "复习",   label: "Elasticsearch 在 RAG / Agent 里的落地", href: reader("elasticsearch-rag-agent"), hint: "elasticsearch es bm25 dense_vector rrf elser hybrid retriever agent tool trace ilm hnsw mapping", tone: "var(--tone-review)" },
   { group: "复习",   label: "LLM 工程化、评测与可观测",         href: reader("llm-observability"), hint: "llm-ops",   tone: "var(--tone-review)" },
   { group: "复习",   label: "Vibe Coding 时代的工程师优势",      href: reader("vibe-coding-spec"),  hint: "requirements refund ai-coding", tone: "var(--tone-code)" },
   { group: "复习",   label: "How to Fix Your Context：上下文工程六法", href: reader("context-engineering"), hint: "context engineering langgraph rag pruning memory", tone: "var(--tone-code)" },

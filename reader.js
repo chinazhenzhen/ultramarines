@@ -64,6 +64,15 @@ const articles = {
     meta: ["32 min", "Retrieval", "Chunking"],
   },
 
+  "elasticsearch-rag-agent": {
+    title: "Elasticsearch 在 RAG 与 Agent 工程里的落地",
+    tag: "Retrieval",
+    path: "./docs/review/12-elasticsearch-rag-agent.md",
+    cover: "./assets/article-rag-retrieval.png",
+    summary: "ES 8.x 三件大事（dense_vector / retriever.rrf / ELSER）+ Agent 工具检索后端 + trace/memory/decision cache 五大场景 + 13 题面试 Q&A + ES vs Vector DB 选型决策树。",
+    meta: ["35 min", "Retrieval", "Elasticsearch"],
+  },
+
   "llm-observability": {
     title: "LLM 工程化、评测与可观测",
     tag: "LLM Ops",
@@ -233,7 +242,7 @@ const categoryGroups = [
     key: "retrieval",
     title: "Retrieval · RAG",
     tone: "#f59e0b",
-    docs: ["rag-retrieval", "vector-db-reranker", "chunking-strategy"],
+    docs: ["rag-retrieval", "vector-db-reranker", "chunking-strategy", "elasticsearch-rag-agent"],
   },
   {
     key: "llmops",
@@ -511,6 +520,7 @@ function normalizeInternalLinks(body) {
     ["docs/review/06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["docs/review/07-vector-db-reranker.md", "vector-db-reranker"],
     ["docs/review/11-chunking-strategy.md", "chunking-strategy"],
+    ["docs/review/12-elasticsearch-rag-agent.md", "elasticsearch-rag-agent"],
     ["docs/review/08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["docs/review/references.md", "references"],
     ["interview-qa.md", "interview-qa"],
@@ -534,6 +544,7 @@ function normalizeInternalLinks(body) {
     ["06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["07-vector-db-reranker.md", "vector-db-reranker"],
     ["11-chunking-strategy.md", "chunking-strategy"],
+    ["12-elasticsearch-rag-agent.md", "elasticsearch-rag-agent"],
     ["08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["references.md", "references"],
   ]);
