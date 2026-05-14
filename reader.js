@@ -51,8 +51,17 @@ const articles = {
     tag: "Retrieval",
     path: "./docs/review/07-vector-db-reranker.md",
     cover: "./assets/cover-vectordb.jpg",
-    summary: "pgvector / Milvus / Qdrant / ES+Faiss 对比，HNSW vs IVF 调参，bge-reranker 训练与混合分数融合（RRF / Weighted）。",
-    meta: ["22 min", "Retrieval", "Selection"],
+    summary: "pgvector / Milvus / Qdrant / ES+Faiss 对比，HNSW vs IVF 调参，bge-reranker 训练与混合分数融合（RRF / Weighted），含 TEI/FastAPI 服务化部署与三层缓存实战。",
+    meta: ["30 min", "Retrieval", "Selection"],
+  },
+
+  "chunking-strategy": {
+    title: "Chunking 策略：RAG 里最被低估的工程模块",
+    tag: "Retrieval",
+    path: "./docs/review/11-chunking-strategy.md",
+    cover: "./assets/article-rag-retrieval.png",
+    summary: "Fixed/Recursive/Semantic/Structure/Agentic/Late 策略全谱，父子 chunk、Anthropic Contextual Retrieval、Metadata schema、表格/PDF/OCR 处理、A/B 评测代码，落地优先。",
+    meta: ["32 min", "Retrieval", "Chunking"],
   },
 
   "llm-observability": {
@@ -141,8 +150,8 @@ const articles = {
     tag: "Interview · Notes",
     path: "./docs/interview/notes/langgraph-context-engineering.md",
     cover: "./assets/context-engineering-drew.png",
-    summary: "Write / Select / Compress / Isolate 四象限在 LangGraph 上的具体落地，包括 prefix cache、reducer、sub-graph 隔离。",
-    meta: ["18 min", "Notes", "Context Engineering"],
+    summary: "双线索深扣：ArtArch.AI 实战（AssetRef 三层存储 / prompt_view / ConfirmedChoices / sub-graph）× Claude Code 对照（files-as-memory / TodoWrite / Auto-compaction / System Reminders / Task subagent）。含 4 级 cache_control 标注、UserMemory append-and-review、TurnReminder UI 事件隔离。",
+    meta: ["45 min", "Notes", "Context Engineering"],
   },
 
   "interview-note-planner-deep-dive": {
@@ -224,7 +233,7 @@ const categoryGroups = [
     key: "retrieval",
     title: "Retrieval · RAG",
     tone: "#f59e0b",
-    docs: ["rag-retrieval", "vector-db-reranker"],
+    docs: ["rag-retrieval", "vector-db-reranker", "chunking-strategy"],
   },
   {
     key: "llmops",
@@ -501,6 +510,7 @@ function normalizeInternalLinks(body) {
     ["docs/review/05-transformer-fundamentals.md", "transformer-fundamentals"],
     ["docs/review/06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["docs/review/07-vector-db-reranker.md", "vector-db-reranker"],
+    ["docs/review/11-chunking-strategy.md", "chunking-strategy"],
     ["docs/review/08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["docs/review/references.md", "references"],
     ["interview-qa.md", "interview-qa"],
@@ -523,6 +533,7 @@ function normalizeInternalLinks(body) {
     ["05-transformer-fundamentals.md", "transformer-fundamentals"],
     ["06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["07-vector-db-reranker.md", "vector-db-reranker"],
+    ["11-chunking-strategy.md", "chunking-strategy"],
     ["08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["references.md", "references"],
   ]);

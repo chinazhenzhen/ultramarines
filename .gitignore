@@ -1,3 +1,6 @@
 .idea/
 .playwright-cli/
 output/
+nanobanana-output/
+__pycache__/
+*.pyc

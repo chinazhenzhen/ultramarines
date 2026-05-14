@@ -30,12 +30,12 @@ const categories = [
     groups: [
       { tone: "#6366f1", label: "Foundations", count: 1, href: reader("transformer-fundamentals") },
       { tone: "var(--tone-review)", label: "Agent Runtime", count: 2, href: reader("agent-runtime") },
-      { tone: "#f59e0b", label: "Retrieval · RAG", count: 2, href: reader("rag-retrieval") },
+      { tone: "#f59e0b", label: "Retrieval · RAG", count: 3, href: reader("rag-retrieval") },
       { tone: "var(--tone-code)", label: "LLM Ops", count: 4, href: reader("llm-observability") },
       { tone: "#8b5cf6", label: "Backend · Infra", count: 1, href: reader("cloud-native") },
     ],
     cta: { label: "进入复习索引", href: reader("review-index") },
-    count: 10,
+    count: 11,
   },
   {
     key: "code",
@@ -66,6 +66,8 @@ const categories = [
 ];
 
 const feedEntries = [
+  { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "Chunking 策略：RAG 里最被低估的工程模块（落地深扣）", meta: "32 min · retrieval", href: reader("chunking-strategy") },
+  { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "RAG / Vector DB 复习长文升级：真实 pipeline 代码 + 服务化部署 + 三层缓存", meta: "30 min · retrieval", href: reader("vector-db-reranker") },
   { date: "2026-05-13", tag: "Interview", tone: "var(--tone-interview)", title: "面试 Q&A 重构：按项目拆成 3 篇独立 Q&A + 4 篇技术专题", meta: "55 min · qa", href: reader("interview-artarch") },
   { date: "2026-05-13", tag: "Interview", tone: "var(--tone-interview)", title: "ArtArch.AI 面试 Q&A：LangGraph + Planner + Context Engineering", meta: "55 min · agent", href: reader("interview-artarch") },
   { date: "2026-05-13", tag: "Interview", tone: "var(--tone-interview)", title: "百度健康助手 RAG 面试 Q&A：混合检索 + 医疗安全双层兜底", meta: "40 min · rag", href: reader("interview-baidu-health") },
@@ -86,6 +88,8 @@ const paletteIndex = [
   { group: "简历",   label: "马震 · 后端研发工程师",          href: reader("resume-source"),     hint: "resume",    tone: "var(--tone-resume)" },
   { group: "复习",   label: "AI Agent 与 LangGraph 工程化",   href: reader("agent-runtime"),     hint: "agent",     tone: "var(--tone-review)" },
   { group: "复习",   label: "RAG、混合检索与医疗问答",         href: reader("rag-retrieval"),     hint: "rag",       tone: "var(--tone-review)" },
+  { group: "复习",   label: "Vector DB 选型 + Reranker 深入",   href: reader("vector-db-reranker"), hint: "vector db reranker pgvector milvus qdrant tei cache", tone: "var(--tone-review)" },
+  { group: "复习",   label: "Chunking 策略：RAG 工程落地",      href: reader("chunking-strategy"),  hint: "chunking parent contextual retrieval anthropic semantic", tone: "var(--tone-review)" },
   { group: "复习",   label: "LLM 工程化、评测与可观测",         href: reader("llm-observability"), hint: "llm-ops",   tone: "var(--tone-review)" },
   { group: "复习",   label: "Vibe Coding 时代的工程师优势",      href: reader("vibe-coding-spec"),  hint: "requirements refund ai-coding", tone: "var(--tone-code)" },
   { group: "复习",   label: "How to Fix Your Context：上下文工程六法", href: reader("context-engineering"), hint: "context engineering langgraph rag pruning memory", tone: "var(--tone-code)" },

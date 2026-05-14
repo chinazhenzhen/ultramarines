@@ -127,6 +127,152 @@ def weighted_fusion(
 
 > 生产坑：很多团队默认走 post-filter，发现 "明明库里有，就是检不到"，最后排查到是 K 设小了被筛光。 排查方法：把不带元数据约束的召回也拉出来对比。
 
+### 2.5 三家 vector DB 真实 schema 与代码（pgvector / Milvus / Qdrant）
+
+不同向量库的"过滤体验"差异巨大。下面是医疗 KB 在三家的真实建表与检索代码，看完就明白为什么 §1 说"重视过滤性能 → Qdrant"。
+
+**pgvector（Postgres 17 + pgvector 0.7+，HNSW）**
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE medical_kb (
+    chunk_id     text PRIMARY KEY,
+    doc_id       text NOT NULL,
+    text         text NOT NULL,
+    embedding    vector(1024) NOT NULL,
+    authority    text NOT NULL,
+    scope        text[] NOT NULL DEFAULT '{}',
+    field        text,
+    updated_at   timestamptz NOT NULL,
+    risk_level   text NOT NULL DEFAULT 'low'
+);
+
+-- HNSW 索引（pgvector 0.5+）
+CREATE INDEX medical_kb_hnsw ON medical_kb
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 24, ef_construction = 200);
+
+-- 过滤字段 B-tree / GIN 索引
+CREATE INDEX ON medical_kb (authority);
+CREATE INDEX ON medical_kb USING gin (scope);
+CREATE INDEX ON medical_kb (updated_at DESC);
+```
+
+检索时**走过滤再 ANN** 是 pgvector 的传统短板（< 0.7 版本只能 post-filter），0.7 起支持 `iterative_scan`：
+
+```sql
+SET hnsw.ef_search = 128;
+SET hnsw.iterative_scan = relaxed_order;   -- 0.7+ 才有
+
+SELECT chunk_id, text, 1 - (embedding <=> $1::vector) AS score
+FROM medical_kb
+WHERE authority = ANY($2::text[])
+  AND scope && $3::text[]
+  AND updated_at > now() - interval '3 years'
+ORDER BY embedding <=> $1::vector
+LIMIT 20;
+```
+
+`iterative_scan` 让 HNSW 在图搜索过程中持续补足够多满足过滤的候选，避免 post-filter 滤穿。`relaxed_order` 不保证严格距离序但更快；`strict_order` 严格但慢。生产里 P99 一般在 60-150ms（千万级 + Postgres 16 + NVMe）。
+
+**Milvus（2.4+，HNSW + scalar index）**
+
+```python
+from pymilvus import MilvusClient, DataType
+
+client = MilvusClient(uri="http://milvus:19530")
+
+schema = client.create_schema(auto_id=False, enable_dynamic_field=True)
+schema.add_field("chunk_id", DataType.VARCHAR, is_primary=True, max_length=128)
+schema.add_field("doc_id", DataType.VARCHAR, max_length=128)
+schema.add_field("text", DataType.VARCHAR, max_length=8192)
+schema.add_field("embedding", DataType.FLOAT_VECTOR, dim=1024)
+schema.add_field("authority", DataType.VARCHAR, max_length=64)
+schema.add_field("scope", DataType.ARRAY, element_type=DataType.VARCHAR, max_capacity=8, max_length=32)
+schema.add_field("updated_at", DataType.INT64)  # epoch seconds
+schema.add_field("risk_level", DataType.VARCHAR, max_length=16)
+
+index_params = client.prepare_index_params()
+index_params.add_index("embedding", index_type="HNSW", metric_type="COSINE",
+                        params={"M": 24, "efConstruction": 200})
+index_params.add_index("authority", index_type="INVERTED")
+index_params.add_index("risk_level", index_type="INVERTED")
+
+client.create_collection("medical_kb", schema=schema, index_params=index_params)
+```
+
+检索时 `filter` 表达式与 ANN 并行——Milvus 2.4 起对标量索引走 pre-filter：
+
+```python
+hits = client.search(
+    collection_name="medical_kb",
+    data=[q_embedding],
+    anns_field="embedding",
+    search_params={"params": {"ef": 128}},
+    limit=20,
+    filter='authority in ["clinical_guideline", "national_drug_administration"] '
+           'and ARRAY_CONTAINS(scope, "elderly") '
+           'and updated_at > 1704000000',
+    output_fields=["chunk_id", "text", "authority", "updated_at"],
+)
+```
+
+**Qdrant（HNSW + payload index，过滤最强）**
+
+```python
+from qdrant_client import QdrantClient
+from qdrant_client.models import (
+    Distance, VectorParams, PayloadSchemaType,
+    Filter, FieldCondition, MatchAny, Range, MatchValue,
+)
+
+client = QdrantClient(host="qdrant", port=6333)
+
+client.recreate_collection(
+    collection_name="medical_kb",
+    vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+    hnsw_config={"m": 24, "ef_construct": 200, "full_scan_threshold": 10000},
+)
+
+# 给过滤字段建 payload index（关键！否则 pre-filter 退化成全扫）
+for field, schema in [
+    ("authority", PayloadSchemaType.KEYWORD),
+    ("scope",     PayloadSchemaType.KEYWORD),
+    ("field",     PayloadSchemaType.KEYWORD),
+    ("risk_level",PayloadSchemaType.KEYWORD),
+    ("updated_at",PayloadSchemaType.DATETIME),
+]:
+    client.create_payload_index(
+        collection_name="medical_kb", field_name=field, field_schema=schema
+    )
+
+# 检索：filter 走 pre-filter + HNSW
+hits = client.search(
+    collection_name="medical_kb",
+    query_vector=q_embedding,
+    query_filter=Filter(
+        must=[
+            FieldCondition(key="authority",
+                           match=MatchAny(any=["clinical_guideline",
+                                                "national_drug_administration"])),
+            FieldCondition(key="scope", match=MatchAny(any=["elderly", "all"])),
+            FieldCondition(key="updated_at", range=Range(gte="2023-01-01")),
+        ]
+    ),
+    limit=20,
+    search_params={"hnsw_ef": 128, "exact": False},
+)
+```
+
+**对比一句话**：
+
+- **pgvector**：能用，0.7+ 起过滤可用，业务和 OLTP 同库的吸引力最大。
+- **Milvus**：大规模生产首选，运维复杂但生态完整、有 GPU 索引。
+- **Qdrant**：过滤最强、Rust 性能稳，HNSW + payload index 几乎为医疗这种"多约束 + ANN"场景量身定制。
+
+百度健康助手早期是 ES dense_vector + Faiss，量起来后把 Faiss 这一路切到 Qdrant——主要因为 payload filter 太香（按药品 / 适用人群 / 风险等级硬过滤是高频查询）。
+
 ## 3. Reranker：Cross-Encoder 才是精度天花板
 
 ```mermaid
@@ -203,6 +349,185 @@ def train_step(model, pos_batch, neg_batch, opt):
 - **Hard negatives**：用第一版 reranker 的 Top-K 错答案作为下一轮训练的负例。
 - **Random negatives**：保留少量纯随机，防止过拟合到 hard 区。
 
+### 3.5 Reranker 服务化部署：TEI vs vLLM vs 自建 FastAPI
+
+reranker 写出来不算完，**怎么把它跑成 GPU 利用率 60%+、P99 < 250ms 的在线服务**才是真活。三种主流姿势：
+
+**方案 A：HuggingFace TEI（Text Embeddings Inference）—— 推荐起步**
+
+TEI 原生支持 reranker，启动一条命令：
+
+```bash
+docker run --gpus all -p 8080:80 \
+  -v $PWD/data:/data \
+  ghcr.io/huggingface/text-embeddings-inference:1.7 \
+  --model-id BAAI/bge-reranker-v2-m3 \
+  --max-batch-tokens 16384 \
+  --max-concurrent-requests 256 \
+  --pooling cls
+```
+
+客户端：
+
+```python
+import httpx
+
+async def rerank_via_tei(query: str, passages: list[str]) -> list[float]:
+    async with httpx.AsyncClient(base_url="http://reranker:8080") as cli:
+        res = await cli.post("/rerank", json={"query": query, "texts": passages})
+        res.raise_for_status()
+        return [r["score"] for r in res.json()]
+```
+
+TEI 用 Rust + Candle，比纯 PyTorch FastAPI 推理快 1.5-2 倍；自带 dynamic batching、长文本截断、Prometheus metrics。**生产里 reranker 服务首选**。
+
+**方案 B：自建 FastAPI + 手动 batching**（适合做了领域微调、模型不在 TEI 支持列表）
+
+```python
+import asyncio, time
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from pydantic import BaseModel
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+MODEL_PATH = "/models/bge-reranker-medical-finetuned"
+BATCH_SIZE = 32
+MAX_WAIT_MS = 8
+
+tok, model, queue = None, None, None
+
+class Item(BaseModel):
+    query: str
+    passages: list[str]
+
+
+async def batcher():
+    """收集请求 → 拼 batch → 一次性推理 → 回填 future。"""
+    while True:
+        items = [await queue.get()]
+        deadline = time.perf_counter() + MAX_WAIT_MS / 1000
+        while len(items) < BATCH_SIZE and time.perf_counter() < deadline:
+            try:
+                items.append(queue.get_nowait())
+            except asyncio.QueueEmpty:
+                await asyncio.sleep(0.001)
+
+        pairs, idx = [], []
+        for k, it in enumerate(items):
+            for j, p in enumerate(it["passages"]):
+                pairs.append((it["query"], p))
+                idx.append((k, j))
+
+        enc = tok([q for q, _ in pairs], [p for _, p in pairs],
+                  padding=True, truncation=True, max_length=512, return_tensors="pt").to("cuda")
+        with torch.inference_mode(), torch.amp.autocast("cuda", dtype=torch.float16):
+            scores = model(**enc).logits.squeeze(-1).float().cpu().tolist()
+
+        results: dict[int, list[float]] = {k: [0.0]*len(items[k]["passages"]) for k in range(len(items))}
+        for (k, j), s in zip(idx, scores):
+            results[k][j] = s
+        for k, it in enumerate(items):
+            it["future"].set_result(results[k])
+
+
+@asynccontextmanager
+async def lifespan(app):
+    global tok, model, queue
+    tok = AutoTokenizer.from_pretrained(MODEL_PATH)
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH).to("cuda").eval()
+    queue = asyncio.Queue()
+    task = asyncio.create_task(batcher())
+    yield
+    task.cancel()
+
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post("/rerank")
+async def rerank(item: Item) -> dict:
+    fut = asyncio.get_event_loop().create_future()
+    await queue.put({"query": item.query, "passages": item.passages, "future": fut})
+    scores = await fut
+    return {"scores": scores}
+```
+
+要点：
+
+- **动态 batching**：单次请求 100 个 (query, doc) 已经够大，但多个并发请求拼 batch 仍能再榨 30-40% 吞吐。`MAX_WAIT_MS = 8ms` 是吞吐与延迟的甜点。
+- **FP16 自动混合精度**：bge-reranker-large 在 A10 上从 60ms / 100 doc 降到 ~35ms。
+- **不要每个请求 reload model**：lifespan 里加载一次，处理 millions。
+
+**方案 C：vLLM / SGLang 路线**（实验性）
+
+vLLM 0.6 开始支持 classification head 的 reranker，但生态没 TEI 稳。**不建议生产用**，除非你已经全栈 vLLM。
+
+### 3.6 缓存层级：把 LLM 调用砍掉 40% 的关键
+
+```text
+┌─────────────────────────────┐
+│ L1: query cache             │  hit rate 5-8%   存 (query_hash) → final answer
+│   redis, TTL 1h             │  最大节省成本
+├─────────────────────────────┤
+│ L2: retrieval cache         │  hit rate 12-18% 存 (query_hash + filter) → top_k passage_ids
+│   redis, TTL 10min          │  避免 ES + Qdrant
+├─────────────────────────────┤
+│ L3: rerank cache            │  hit rate 20-30% 存 (query + passage_ids[]) → scores
+│   redis, TTL 15min          │  避免 GPU 推理
+├─────────────────────────────┤
+│ L4: embedding cache         │  hit rate 30-45% 存 (text_hash) → vector
+│   redis, TTL 24h            │  query 改写、热词命中高
+└─────────────────────────────┘
+```
+
+注意点：
+
+1. **查询缓存要带"安全签名"**：相同 query 可能因为 `risk_level` 升级而需要走 safety 模板，所以 cache key 要包含意图分类结果。
+2. **TTL 分层**：知识库不常变，embedding 可以缓存 24h+；retrieval cache 短一点，10min 内的"高频问题"已经能覆盖大多数突发流量。
+3. **Negative cache**：`low_evidence` 的结果也要缓存（避免反复检索同一个无答案问题）。
+4. **失效**：知识库重建时 broadcast invalidation；监控里加 `cache_hit_rate_by_layer`。
+
+```python
+import hashlib, json, redis
+r = redis.Redis(host="redis", decode_responses=False)
+
+def key(prefix: str, *parts) -> str:
+    raw = "|".join(map(str, parts))
+    return f"{prefix}:{hashlib.sha1(raw.encode()).hexdigest()}"
+
+async def rerank_with_cache(query, passages, ttl=900):
+    p_ids = [p.id for p in passages]
+    k = key("rerank", query, ",".join(p_ids))
+    if (cached := r.get(k)):
+        return json.loads(cached)
+    scores = await rerank_via_tei(query, [p.text for p in passages])
+    r.setex(k, ttl, json.dumps(scores))
+    return scores
+```
+
+**实测**：百度健康助手三层缓存（L2 + L3 + L4）合计把 GPU 推理调用砍掉 ~40%、把 LLM 调用砍掉 ~12%，整体成本降到 baseline 的 55%。
+
+### 3.7 Shadow Traffic：reranker 上线必备
+
+reranker 微调更新（甚至换 base model）属于"可能掉点的高风险变更"，不能直接切流。
+
+```python
+async def rerank_with_shadow(query, passages):
+    main = await rerank_via_tei(query, [p.text for p in passages])  # 主路
+    asyncio.create_task(_shadow(query, passages))                   # 影子异步
+    return main
+
+async def _shadow(query, passages):
+    try:
+        shadow = await rerank_via_tei_v2(query, [p.text for p in passages])
+        # 落日志：两套打分、Top-K 是否一致、是否有引入 fail case 的迹象
+        await log_shadow_diff(query, passages, shadow)
+    except Exception as e:
+        logger.warning("shadow_failed", exc_info=e)  # 影子任何失败都不能影响主路
+```
+
+每天对 shadow 日志跑 LLM-as-judge 对比，连续 3 天主指标不退化才正式切流。这是 Stripe / OpenAI / Anthropic 部署模型变更的标准动作。
+
 ## 4. 引用溯源：让 LLM 答案带证据
 
 医疗、法律等高风险场景，必须告诉用户"这句话来自哪个文档的哪段"。**关键设计**：在 prompt 里给每个 chunk 编号，要求模型答案里直接附 `[doc_id]`。
@@ -276,7 +601,7 @@ A：cross-encoder 必须给定 (query, doc) 对，**没有 ANN 索引可言**。
 A：**冷启动 RRF**：不需要校准两路分数尺度，工程上极稳。有评测集后切到 Weighted，能多挤 1-2pp。RRF 公式 `1/(k+rank)`，k 取 60 是论文默认值，大多数场景不用调。
 
 **Q5：chunk size 怎么选？**
-A：医疗答案需要"完整段落级"上下文，**典型 chunk_size 400-800 tokens，overlap 80-160**。但要看 embedding 模型上限：bge-large-zh 上限 512 token，bge-m3 是 8192，所以 m3 可以做更大 chunk。**强烈建议做 chunk size 的 A/B 评测**，不要凭直觉。
+A：医疗答案需要"完整段落级"上下文，**典型 chunk_size 400-800 tokens，overlap 80-160**。但要看 embedding 模型上限：bge-large-zh 上限 512 token，bge-m3 是 8192，所以 m3 可以做更大 chunk。**强烈建议做 chunk size 的 A/B 评测**，不要凭直觉。Reranker 这一端也有约束：cross-encoder 是 query + doc 拼进 transformer，总长不能超模型上下文（bge-reranker-large 是 512 token），所以 doc chunk 要预留出 query 长度的余量（**< 480 token**）。完整 chunking 方法论见 [Chunking 策略](./11-chunking-strategy.md)。
 
 **Q6：医疗 RAG 的安全兜底怎么做？**
 A：三层：1) 关键词词典识别急症（胸痛 + 大汗 + 呼吸困难 → 立刻提示就医），2) LLM 二级分类（高风险用药、诊断结论、处方），3) 命中后强制走"建议线下就医"模板，不调用 LLM 自由回答。**安全召回率 98%+ 是这层的 KPI**。
@@ -297,3 +622,5 @@ A：先看是哪个维度撑不住。如果是 QPS，加只读副本；如果是
 - Milvus 文档 `Index types` — IVF / HNSW / DiskANN / SCANN 的对比
 - pgvector GitHub README — HNSW vs IVFFlat 调参建议
 - Anthropic *Contextual Retrieval* — chunk 加 context 前缀，召回质量再升一截
+- HuggingFace TEI (Text Embeddings Inference) — <https://github.com/huggingface/text-embeddings-inference>
+- 本站姊妹篇：[Chunking 策略](./11-chunking-strategy.md)、[RAG 混合检索与医疗问答](./02-rag-retrieval.md)
