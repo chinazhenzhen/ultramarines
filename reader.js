@@ -28,6 +28,15 @@ const articles = {
     meta: ["32 min", "Architecture", "LangGraph"],
   },
 
+  "claude-code-architecture": {
+    title: "Claude Code 源码分析与架构设计复盘",
+    tag: "Agent Runtime",
+    path: "./docs/review/13-claude-code-architecture.md",
+    cover: "./assets/claude-code-architecture.png",
+    summary: "基于公开源码分析论文和 Anthropic 官方文档，整理 Claude Code 的 agent loop、权限、hooks、subagent、上下文压缩、持久化与 JSON 结构化输出设计 tips。",
+    meta: ["38 min", "Architecture", "Claude Code"],
+  },
+
   "planner-deterministic": {
     title: "Planner + Deterministic Assembly 模式",
     tag: "Agent Runtime",
@@ -236,7 +245,7 @@ const categoryGroups = [
     key: "agent",
     title: "Agent Runtime",
     tone: "var(--tone-review)",
-    docs: ["agent-runtime", "planner-deterministic"],
+    docs: ["agent-runtime", "claude-code-architecture", "planner-deterministic"],
   },
   {
     key: "retrieval",
@@ -513,6 +522,7 @@ function normalizeInternalLinks(body) {
     ["docs/interview/notes/ugc-audit-agent-tools.md", "interview-note-ugc-agent"],
     ["docs/review/README.md", "review-index"],
     ["docs/review/01-ai-agent-langgraph.md", "agent-runtime"],
+    ["docs/review/13-claude-code-architecture.md", "claude-code-architecture"],
     ["docs/review/02-rag-retrieval.md", "rag-retrieval"],
     ["docs/review/03-llm-engineering-observability.md", "llm-observability"],
     ["docs/review/04-backend-cloud-native.md", "cloud-native"],
@@ -537,6 +547,7 @@ function normalizeInternalLinks(body) {
     ["../baidu-map-ugc.md", "interview-baidu-map-ugc"],
     ["README.md", "review-index"],
     ["01-ai-agent-langgraph.md", "agent-runtime"],
+    ["13-claude-code-architecture.md", "claude-code-architecture"],
     ["02-rag-retrieval.md", "rag-retrieval"],
     ["03-llm-engineering-observability.md", "llm-observability"],
     ["04-backend-cloud-native.md", "cloud-native"],

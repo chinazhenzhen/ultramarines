@@ -22,13 +22,16 @@
 4. [Vibe Coding 时代的工程师优势](./09-vibe-coding-requirement-spec.md)
    对应 AI 辅助编程面试追问。重点背熟：问题定义、上下文构建、业务语义验证、Token 成本控制，以及“退款功能”如何拆成可执行规格。
 
-5. [How to Fix Your Context：上下文工程六法](./10-context-engineering-langgraph.md)
+5. [Claude Code 源码分析与架构设计复盘](./13-claude-code-architecture.md)
+   对应 AI Coding Agent 架构设计追问。重点背熟：agent loop、权限系统、hooks、subagent、context compaction、JSON Schema 结构化输出与验证链路。
+
+6. [How to Fix Your Context：上下文工程六法](./10-context-engineering-langgraph.md)
    对应上下文工程与 LangGraph 落地。重点背熟：RAG、Tool Loadout、Context Quarantine、Pruning、Summarization、Offloading，以及它们在 LangGraph 里如何变成节点。
 
-6. [后端架构、SSE、Kubernetes GPU 与 Operator](./04-backend-cloud-native.md)
+7. [后端架构、SSE、Kubernetes GPU 与 Operator](./04-backend-cloud-native.md)
    对应你的后端和平台经验。重点背熟：SSE vs WebSocket、FastAPI streaming、K8s Device Plugin、CRD/Operator。
 
-7. [资料来源与延伸阅读](./references.md)
+8. [资料来源与延伸阅读](./references.md)
    面试前按主题快速打开官方文档、论文、源码和行业工程博客。
 
 ## 技术栈到面试能力映射

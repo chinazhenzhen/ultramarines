@@ -29,13 +29,13 @@ const categories = [
     blurb: "按 5 大类抽屉式整理 —— 基础、Agent、RAG、LLM Ops、Infra。每篇含架构图、源码骨架与失败边界。",
     groups: [
       { tone: "#6366f1", label: "Foundations", count: 1, href: reader("transformer-fundamentals") },
-      { tone: "var(--tone-review)", label: "Agent Runtime", count: 2, href: reader("agent-runtime") },
+      { tone: "var(--tone-review)", label: "Agent Runtime", count: 3, href: reader("agent-runtime") },
       { tone: "#f59e0b", label: "Retrieval · RAG", count: 4, href: reader("rag-retrieval") },
       { tone: "var(--tone-code)", label: "LLM Ops", count: 4, href: reader("llm-observability") },
       { tone: "#8b5cf6", label: "Backend · Infra", count: 1, href: reader("cloud-native") },
     ],
     cta: { label: "进入复习索引", href: reader("review-index") },
-    count: 12,
+    count: 13,
   },
   {
     key: "code",
@@ -66,6 +66,7 @@ const categories = [
 ];
 
 const feedEntries = [
+  { date: "2026-05-15", tag: "Review", tone: "var(--tone-review)", title: "Claude Code 源码分析与架构设计复盘（含 JSON 输出可靠性 tips）", meta: "38 min · agent architecture", href: reader("claude-code-architecture") },
   { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "Elasticsearch 在 RAG 与 Agent 工程里的落地（含 13 题 Q&A）", meta: "35 min · retrieval", href: reader("elasticsearch-rag-agent") },
   { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "Chunking 策略：RAG 里最被低估的工程模块（落地深扣）", meta: "32 min · retrieval", href: reader("chunking-strategy") },
   { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "RAG / Vector DB 复习长文升级：真实 pipeline 代码 + 服务化部署 + 三层缓存", meta: "30 min · retrieval", href: reader("vector-db-reranker") },
@@ -88,6 +89,7 @@ const feedEntries = [
 const paletteIndex = [
   { group: "简历",   label: "马震 · 后端研发工程师",          href: reader("resume-source"),     hint: "resume",    tone: "var(--tone-resume)" },
   { group: "复习",   label: "AI Agent 与 LangGraph 工程化",   href: reader("agent-runtime"),     hint: "agent",     tone: "var(--tone-review)" },
+  { group: "复习",   label: "Claude Code 源码分析与架构设计",   href: reader("claude-code-architecture"), hint: "claude code source architecture hooks permissions json schema subagents", tone: "var(--tone-review)" },
   { group: "复习",   label: "RAG、混合检索与医疗问答",         href: reader("rag-retrieval"),     hint: "rag",       tone: "var(--tone-review)" },
   { group: "复习",   label: "Vector DB 选型 + Reranker 深入",   href: reader("vector-db-reranker"), hint: "vector db reranker pgvector milvus qdrant tei cache", tone: "var(--tone-review)" },
   { group: "复习",   label: "Chunking 策略：RAG 工程落地",      href: reader("chunking-strategy"),  hint: "chunking parent contextual retrieval anthropic semantic", tone: "var(--tone-review)" },
