@@ -20,12 +20,12 @@ const articles = {
   },
 
   "agent-runtime": {
-    title: "AI Agent 与 LangGraph 工程化",
+    title: "LangGraph 架构设计与 Agent Runtime 落地",
     tag: "Agent Runtime",
     path: "./docs/review/01-ai-agent-langgraph.md",
     cover: "./assets/article-agent-runtime-v2.png",
-    summary: "基于 dag_engine 源码拆解双运行时架构：底层 DAG 执行器与上层 LangGraph Agent Runtime 的边界、实践和优化点。",
-    meta: ["32 min", "Architecture", "LangGraph"],
+    summary: "系统拆解 LangGraph 的 StateGraph、Pregel super-step、checkpoint、interrupt/resume 与 streaming，并映射到 dag_engine/agent 的真实代码和面试问答。",
+    meta: ["45 min", "Architecture", "LangGraph"],
   },
 
   "claude-code-architecture": {
