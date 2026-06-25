@@ -1,6 +1,6 @@
 # LangGraph 架构设计与 dag_engine Agent Runtime 落地
 
-![图 1 - dag-engine 双运行时：Agent Runtime 负责长流程会话，DAG Engine 负责确定性执行](../../assets/article-agent-runtime-v2.png)
+![图 1 - dag-engine 双运行时：Agent Runtime 负责长流程会话，DAG Engine 负责确定性执行](../../assets/dag-engine-runtime.png)
 
 > 本文以 LangGraph 官方 v1.x 文档和官方仓库为主线，结合 `/Users/mac/Code/Arch/dag_engine/agent` 的真实代码做架构复盘。重点不是泛泛介绍“Agent 是什么”，而是回答一个工程问题：为什么生产级 Agent Runtime 需要 LangGraph 这种低层、有状态、可持久化、可中断恢复的运行时，以及这套能力在 `dag_engine/agent` 里如何落地。
 
@@ -114,6 +114,8 @@ def _thread_config(self, session_id: str) -> dict[str, Any]:
 这个映射是对的：一次创作会话就是一条 LangGraph thread。用户刷新页面、断线重连、隔天回来继续，都应该复用同一个 `session_id`。
 
 ### 2.4 Interrupt / Resume：不是前端暂停，而是运行时暂停
+
+![图 2 - LangGraph 动态中断与恢复生命周期](../../assets/langgraph-hitl-flow.png)
 
 LangGraph 的 `interrupt()` 是 human-in-the-loop 的关键原语。它不是简单返回一个“需要用户输入”的标志，而是在 node 内部暂停图执行、保存状态，并等待下一次用 `Command(resume=...)` 恢复。
 
@@ -833,6 +835,108 @@ error -> 展示可恢复错误
 6. 错误需要结构化分类，支持用户修复、planner repair 和运维报警。
 
 这些补齐后，LangGraph 的 checkpoint/resume 才能真正变成线上 SLA，而不是 demo 能跑。
+
+## 6. 生产级持久化与高并发治理（PostgreSQL 核心机制）
+
+在真实的千万级高并发企业场景下，LangGraph 的持久化不能只靠 demo 里的 `InMemorySaver`，而必须落地到以 PostgreSQL 为核心的持久化方案。
+
+### 6.1 PostgreSQL 物理存储与 Schema 设计
+在生产环境下，LangGraph 推荐并集成了 `langgraph-checkpoint-postgres`。其底层的物理表结构主要包含以下几张核心表：
+
+1. **`checkpoints` (检查点元数据表)**
+   - 存储每个 super-step 结束时图的元数据。
+   - 核心字段：`thread_id`（通常映射为 `session_id`）、`checkpoint_id`（由系统生成的有序 UUID / 时间戳）、`parent_id`（父检查点指针，用以形成链式 DAG 历史游标，支持 Time Travel）、`metadata`（存储运行节点名称、当前 run_id 等）。
+2. **`checkpoint_blobs` (状态二进制大对象表)**
+   - 存储序列化后的图状态。
+   - 核心字段：`thread_id`、`checkpoint_id`、`channel`（每个 state 键对应一个通道）、`type`（数据序列化类型，如 json、pickle、protobuf）、`blob`（二进制存储的实际 State 增量或快照）。
+3. **`checkpoint_writes` (Super-step 写入缓冲表)**
+   - 临时暂存当前 super-step 运行中各个 Node 返回的 `updates`，在 super-step 边界执行合并（Reduce）并转换为最终的 checkpoint 快照，然后清空 writes 记录。
+
+### 6.2 异步非阻塞高并发治理 (AsyncPostgresSaver)
+在 FastAPI 等基于 asyncio 的异步高性能 API 框架中，**严禁使用任何同步数据库 Saver**。
+- **痛点**：同步 checkpointer 会发起阻塞式的 I/O 连接，强行占用 FastAPI 主事件循环，导致并发请求吞吐断崖式下跌，甚至引起大面积 HTTP 504 延迟超时。
+- **对策**：必须统一使用 `AsyncPostgresSaver`，并配合 `asyncpg` 异步驱动。
+
+```python
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg_pool import AsyncConnectionPool
+
+# 建立异步连接池
+pool = AsyncConnectionPool(conninfo="postgresql://user:pass@host/db", max_size=20)
+
+async def run_agent_workflow():
+    async with AsyncPostgresSaver(pool) as saver:
+        # 编译图时挂载异步持久化组件
+        app = workflow.compile(checkpointer=saver)
+
+        # 运行过程中，所有 Checkpoint 读写都由 aio 协程异步驱动，绝不阻塞主事件循环
+        config = {"configurable": {"thread_id": "session_123"}}
+        await app.ainvoke({"messages": [{"role": "user", "content": "hi"}]}, config)
+```
+
+### 6.3 悲观排他锁与并发写冲突 (Thread Locking)
+在多渠道、高频轮询的场景下，同一个 `thread_id`（即同一个 `session_id`）极有可能遭遇并发请求碰撞（例如用户手抖快速点击了两次，或者前端 Canvas 在发送心跳的同时，用户提交了新修改）。
+- **LangGraph 原生锁机制**：LangGraph Checkpointer 在读取或执行某一 thread 时，会对该 `thread_id` 施加行级悲观锁。如果第二个请求试图写同一个 thread，它将被阻塞，直到前一个 super-step 执行完毕、checkpoint 保存完成、锁被释放。
+- **工程保护**：在应用平台层，我们应该对 API 网关配置分布式 Redis 悲观锁。当判断某个 `session_id` 处于 `running` 状态时，直接在网关层将冲突请求拦截并返回 `HTTP 409 Conflict`，避免大量请求在数据库级别排队挂起，引发连接池枯竭故障。
+
+---
+
+## 7. "Time Travel" 机制与状态分支原理 (Fork, Rewind)
+
+在多模态创作或 AI 辅助编程领域，用户经常不满足于“单线前行”的生成结果，而是希望能够“回滚到 3 步以前，重新走另一条创意分支”。这在工程上被称为 **时间旅行（Time Travel）**。
+
+### 7.1 Checkpoint 链与 Fork 的数学模型
+LangGraph 默认采用链式结构（Linked List）存储一个 thread 下的所有 Checkpoint：
+$$\text{CP}_0 \longleftarrow \text{CP}_1 \longleftarrow \text{CP}_2 \longleftarrow \text{CP}_3$$
+每个 Checkpoint 记录自己的 `parent_id`。
+当用户希望对 $\text{CP}_1$ 阶段的数据做人工编辑，然后继续生成时，系统会执行 **Fork** 动作：
+1. 客户端通过 `get_state_history(thread_id)` 获取历史 $\text{CP}_1$ 的 `checkpoint_id`。
+2. 调用 `update_state` 往该历史检查点写入用户编辑的值。
+3. LangGraph 运行时不会覆写原始链条，而是会克隆 $\text{CP}_1$，并将它的 `parent_id` 设为 $\text{CP}_1$，从而分叉出一条新的历史分支：
+
+```text
+                  ┌──> CP_4 (New Branch) ──> CP_5...
+                  │
+CP_0 <── CP_1 <── CP_2 <── CP_3 (Abandoned Branch)
+```
+
+### 7.2 Time Travel 代码实现示例
+以下是我们在 API 层面实现“回到分镜阶段 2 并覆盖其参数，重新生成视频草稿”的底层逻辑：
+
+```python
+async def rewind_and_fork_thread(session_id: str, target_checkpoint_id: str, edit_payload: dict):
+    config = {"configurable": {"thread_id": session_id}}
+
+    # 1. 获取目标 Checkpoint 历史状态
+    checkpoint_config = {
+        "configurable": {
+            "thread_id": session_id,
+            "checkpoint_id": target_checkpoint_id
+        }
+    }
+
+    # 2. 调用 update_state 往指定 Checkpoint 执行分支写入
+    # as_node 指定本次状态更新以哪个节点的名义发起，使图运行时能够顺理成章地路由到下一个相邻 Node
+    await app.aupdate_state(
+        checkpoint_config,
+        values={
+            "script_spec": edit_payload,           # 覆盖历史分镜数据
+            "stage": "storyboard",                 # 将阶段强制拨回分镜节点
+            "pending_interrupt": None              # 消除挂起的中断
+        },
+        as_node="storyboard_generator_node"
+    )
+
+    # 3. 重新运行图。LangGraph 将自动加载最新分叉的 Checkpoint 分支继续顺流执行
+    async for event in app.astream(
+        None,                                      # 传 None 表示不输入新 message，完全从最新 Checkpoint 恢复
+        config=config,
+        stream_mode="custom"
+    ):
+        yield event
+```
+
+---
 
 ## 8. 面试版 90 秒总结
 

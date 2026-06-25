@@ -248,46 +248,123 @@ assertions:
 
 这类断言能证明 Agent 不是“最后文本看起来对”，而是过程也符合系统约束。
 
-## 6. Trace 设计
+## 5. 评测体系与 LLM-as-a-Judge 校准
 
-### Trace Span 结构
+在生产级 Agent 应用中，单纯靠人工点赞（Upvote/Downvote）或肉眼观测，根本无法支撑系统的科学迭代。我们必须建立**自动化、可量化的评测闭环体系**。
 
+### 5.1 自动化评测三阶模型 (Evals Taxonomy)
+1. **硬约束校验 (Deterministic Assertions)**：
+   - **Schema 合规性**：检验模型输出的 JSON 100% 契合 Pydantic/JSON Schema 约束。
+   - **执行 dry-run**：模拟运行生成的 DAG，确保无悬空 handle、节点无 slot 冲突。
+2. **逻辑轨迹断言 (Trajectory Assertions)**：
+   - 验证 Agent 决策路径：必须先调用 `search` 工具，再调用 `summary`，严禁越过状态机直接调用 `render`。
+3. **主观语义评分 (LLM-as-a-Judge)**：
+   - 针对推荐文案、分镜描述、艺术风格等主观指标，使用更强的大模型（如 GPT-4o 或 Claude 3.5 Sonnet）根据预设规则（Rubrics）进行打分（1-5 分）。
+
+### 5.2 LLM-as-a-Judge 的数学校准与对齐 (Human-LLM Alignment)
+**痛点**：模型作为评委（Judge）极易产生固有偏见（如“自恋偏见”——倾向于给自己生成的文本打高分，“长度偏见”——字数越长分数越高）。如果不经过与人类专家的共识校准，大模型打出的分数纯属自嗨。
+
+#### 核心指标 1：Cohen's Kappa 关联系数（离散评分对齐）
+为了验证 LLM 评分与人类医学/设计专家的打分（如 1-5 分离散值）是否一致，我们必须计算 **Cohen's Kappa 系数**：
+$$ \kappa = \frac{p_o - p_e}{1 - p_e} $$
+- **$p_o$ (Observed Agreement)**：LLM Judge 和人类专家打分完全一致的实际比例。
+- **$p_e$ (Expected Agreement)**：LLM Judge 和人类专家纯粹因随机几率达成一致的期望比例。
+
+$$\text{Kappa 值释义} \begin{cases} 
+< 0.40 & \text{对齐度极低，评测不可信} \\ 
+0.40 \le \kappa < 0.60 & \text{中度一致，需要修复 Judge 提示词} \\ 
+0.60 \le \kappa < 0.80 & \text{高度一致，可以替代部分初级人工质检} \\ 
+\ge 0.82 & \text{极高度一致，可作为 CI/CD 自动化门禁} 
+\end{cases}$$
+
+#### 核心指标 2：Spearman 秩相关系数（排序一致性对齐）
+若两个 Prompt 竞争（Pairwise Win-Rate），我们使用 **Spearman Rank Correlation** 衡量 LLM 胜率矩阵与人类专家胜率矩阵在排序上的一致性，确保模型推荐的“更佳创意”与人类直觉相符。
+
+---
+
+## 6. Trace 设计 (基于 OpenTelemetry 语义标准)
+
+当线上发生“回答过慢”、“画面生成错误”、“成本爆表”等 Badcase 时，唯一能救命的是**分布式链路追踪（Distributed Tracing）**。我们必须严格遵循 **OpenTelemetry (OTEL) GenAI Semantic Conventions** 标准设计 Trace 系统。
+
+### 6.1 Trace Span 分层拓扑
 ```mermaid
 flowchart TD
   R[run span] --> I[intent span]
   R --> G[graph stage span]
-  G --> M[model call span]
-  G --> T[tool call span]
+  G --> M[model call span: gen_ai.client]
+  G --> T[tool call span: gen_ai.tool]
   G --> V[validation span]
   G --> X[execution span]
   M --> U[usage/cost]
   T --> A[audit]
 ```
 
-### 必备字段
+### 6.2 遵循 OpenTelemetry 标准的语义属性命名规范 (Attributes)
+在 GenAI 监控中，严禁瞎编字段。必须使用 OTEL 社区推荐属性：
 
-- `session_id`, `run_id`, `user_id`
-- `stage`, `node_name`, `thread_id`
-- `provider`, `model`, `prompt_version`
-- `input_tokens`, `output_tokens`, `cost`
-- `latency_ms`, `first_event_ms`
-- `tool_name`, `tool_args_hash`, `retry_count`
-- `error_type`, `error_code`, `fallback_used`
-- `eval_scores`, `user_feedback`
+| 属性名称 | 类型 | 说明与示例 |
+| :--- | :--- | :--- |
+| `gen_ai.system` | `string` | 模型供应商：`openai`, `gemini`, `anthropic` |
+| `gen_ai.request.model` | `string` | 发起请求的模型名称：`gemini-2.5-pro` |
+| `gen_ai.response.model` | `string` | 实际响应的模型名称：`gemini-2.5-pro-v1` |
+| `gen_ai.request.temperature` | `double` | 采样温度：`0.4` |
+| `gen_ai.usage.input_tokens` | `int` | 输入的 Prompt 消耗 token 数 |
+| `gen_ai.usage.output_tokens` | `int` | 模型吐出的 Completion token 数 |
+| `gen_ai.choice.finish_reason` | `string` | 终止原因：`stop`, `length`, `tool_calls` |
 
-### 为什么要记录 prompt_version？
+### 6.3 生产级 Trace Payload 结构 (JSON 示例)
+在底层存储（如 Elasticsearch / Jaeger）中落盘的标准 JSON Span 片段：
 
-没有 prompt_version，就无法解释“同一个模型今天效果为什么变了”。Prompt 是代码的一部分，必须可版本化、可回滚、可对比指标。
+```json
+{
+  "trace_id": "8fa9e2a14b5c7f8e02d41a99f11a823e",
+  "span_id": "01b5c9d2fe4a3b78",
+  "parent_span_id": "f5a8c903bd2e9177",
+  "name": "model_planner_call",
+  "start_time": "2026-06-03T18:20:00.150Z",
+  "end_time": "2026-06-03T18:20:01.370Z",
+  "attributes": {
+    "gen_ai.system": "gemini",
+    "gen_ai.request.model": "gemini-2.5-pro",
+    "gen_ai.request.temperature": 0.4,
+    "gen_ai.response.model": "gemini-2.5-pro-v1",
+    "gen_ai.usage.input_tokens": 1420,
+    "gen_ai.usage.output_tokens": 420,
+    "gen_ai.choice.finish_reason": "tool_calls",
+    "app.session_id": "session_creation_982173",
+    "app.run_id": "run_89123_abc",
+    "app.stage": "storyboard_generation",
+    "app.prompt_version": "v2.1.4_cyberpunk"
+  },
+  "events": [
+    {
+      "time": "2026-06-03T18:20:00.152Z",
+      "name": "gen_ai.request.content",
+      "attributes": {
+        "content": "Generate a 4-shot storyboard for a cyberpunk themed short..."
+      }
+    },
+    {
+      "time": "2026-06-03T18:20:01.368Z",
+      "name": "gen_ai.response.content",
+      "attributes": {
+        "content": "{\"tool_calls\": [{\"name\": \"create_dag_draft\", \"args\": {...}}]}"
+      }
+    }
+  ]
+}
+```
 
-### Trace 到排障的映射
+### 6.4 Trace 驱动的线上 Badcase 诊断排障
+有了结构化的 Span Attributes，我们才能将线上故障 100% 归因：
 
-| 线上症状 | 先看哪个 span | 可能原因 |
-|---|---|---|
-| 回答慢 | queue / model / tool / retrieval | 队列拥塞、provider 抖动、rerank 慢 |
-| DAG 不可执行 | planner / validation / assembly | pattern 选错、slot 缺失、registry 版本不一致 |
-| 成本突增 | usage / prompt_version | 上下文膨胀、fallback 频繁、重试循环 |
-| 安全漏判 | risk classifier / post-check | 风险规则缺失、judge rubric 弱 |
-| 用户刷新丢状态 | event / checkpoint | event store 缺失、thread_id 不一致 |
+| 线上症状 | 检索 Span 特征 | 诊断与故障归因 (Root Cause Analysis) |
+| :--- | :--- | :--- |
+| **回答慢（延迟长）** | `latency_ms > 5000` | 筛选下层 Span，若 `name` 为 `retrieval_milvus` 或 `reranker` 则属于知识库慢，需加向量索引或精简重排候选。若在 `model_call` 则是提供商模型抖动。 |
+| **成本爆表** | `attributes.gen_ai.usage.input_tokens > 20000` | 查看上下文 Span。判断是否发生 Context Compaction 缺失、工具输出冗余导致上下文指数级膨胀。 |
+| **画面渲染崩溃** | `attributes.error_type = "schema_error"` | 锁定 `validation_span`。由于模型输出不契合 JSON Schema，或 Registry 模板版本不一致，阻断了装配器执行。需回溯 `prompt_version` 修复指令。 |
+
+---
 
 ## 7. 成本治理
 

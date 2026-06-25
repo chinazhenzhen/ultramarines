@@ -35,6 +35,8 @@ RAG 是 AI 应用岗位最容易被问穿的领域。浅层回答通常停留在
 
 ## 2. 医疗 RAG 链路图
 
+![图 1 - 医疗 RAG 混合检索与安全防线](../../assets/medical-rag-safety.png)
+
 ```mermaid
 flowchart LR
   Q[User Query] --> I[Intent + Risk Classifier]

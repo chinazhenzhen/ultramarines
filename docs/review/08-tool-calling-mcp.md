@@ -235,6 +235,19 @@ flowchart LR
     C3 <-->|stdio / SSE| S3[MCP Server<br/>chrome-devtools]
 ```
 
+### 3.1 企业级 MCP Gateway 架构
+
+在本地开发时，MCP 客户端可以通过简单的 `stdio` 连接。但在生产级、多租户的企业架构中，我们必须将其升级为**中心化 MCP Gateway（Hub-and-Spoke）网关架构**。
+
+![图 2 - 企业级 MCP Gateway 安全隔离架构](../../assets/mcp-gateway-arch.png)
+
+#### 企业生产级四大安全与高可用治理原则：
+
+1. **传输升级**：完全淘汰不安全的 `stdio` 进程间通信，将客户端与 MCP 服务端解耦，全链路基于 **Streamable HTTP** 通信，便于服务水平伸缩与容器化部署。
+2. **多租户数据隔离**：在 Gateway 层统一拦截并校验用户凭证（OAuth 2.1 / JWT），将工具调用权限与具体用户身份绑定（Identity Attribution），严禁多租户越权读取或篡改数据。
+3. **服务端参数网关（Prompt Injection Defense）**：不盲目信任大模型输出的 JSON 参数。在 Gateway 层对 `tools/call` 进行参数类型、长度、拼凑格式校验，拒绝一切包含命令注入（如 SQL 拼接、Shell 管道字符）的恶意输入。
+4. **人工确认（Human-in-the-loop）**：划分工具的“敏感级别”。只读工具（如文档检索）直接执行，高危写工具（如数据库修改、邮件发送、API 扣费）在 Gateway 层触发**动态中断（Dynamic Interrupt）**并挂起状态，在前端弹出审批卡片由用户点击确认后，再由 Gateway 发起真实调用。
+
 **MCP 把 "tool" 这个抽象拆成三类资源**：
 
 | 资源 | 用途 | 例子 |
