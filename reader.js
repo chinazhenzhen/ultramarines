@@ -127,6 +127,15 @@ const articles = {
     meta: ["22 min", "Infra", "Kubernetes"],
   },
 
+  "k8s-gpu-scheduling": {
+    title: "K8s GPU 调度二次开发深度复习",
+    tag: "Backend",
+    path: "./docs/deep-dive/2026-06-25-k8s-gpu-scheduling-development-review.md",
+    cover: "./assets/k8s-gpu-scheduling-deep-dive.svg",
+    summary: "从 Device Plugin、GPU Operator、MIG、DRA 到 Scheduler Framework 二次开发，串起架构设计、底层代码设计和常见 case 复盘。",
+    meta: ["42 min", "Infra", "K8s GPU"],
+  },
+
   "interview-qa": {
     title: "AI Agent 岗位深度追问手册（旧版总览）",
     tag: "Interview",
@@ -263,7 +272,7 @@ const categoryGroups = [
     key: "infra",
     title: "Backend · Infra",
     tone: "#8b5cf6",
-    docs: ["cloud-native"],
+    docs: ["cloud-native", "k8s-gpu-scheduling"],
   },
   {
     key: "interview",
@@ -526,6 +535,7 @@ function normalizeInternalLinks(body) {
     ["docs/review/02-rag-retrieval.md", "rag-retrieval"],
     ["docs/review/03-llm-engineering-observability.md", "llm-observability"],
     ["docs/review/04-backend-cloud-native.md", "cloud-native"],
+    ["docs/deep-dive/2026-06-25-k8s-gpu-scheduling-development-review.md", "k8s-gpu-scheduling"],
     ["docs/review/05-transformer-fundamentals.md", "transformer-fundamentals"],
     ["docs/review/06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["docs/review/07-vector-db-reranker.md", "vector-db-reranker"],
@@ -551,6 +561,7 @@ function normalizeInternalLinks(body) {
     ["02-rag-retrieval.md", "rag-retrieval"],
     ["03-llm-engineering-observability.md", "llm-observability"],
     ["04-backend-cloud-native.md", "cloud-native"],
+    ["2026-06-25-k8s-gpu-scheduling-development-review.md", "k8s-gpu-scheduling"],
     ["05-transformer-fundamentals.md", "transformer-fundamentals"],
     ["06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["07-vector-db-reranker.md", "vector-db-reranker"],

@@ -32,10 +32,10 @@ const categories = [
       { tone: "var(--tone-review)", label: "Agent Runtime", count: 3, href: reader("agent-runtime") },
       { tone: "#f59e0b", label: "Retrieval · RAG", count: 4, href: reader("rag-retrieval") },
       { tone: "var(--tone-code)", label: "LLM Ops", count: 4, href: reader("llm-observability") },
-      { tone: "#8b5cf6", label: "Backend · Infra", count: 1, href: reader("cloud-native") },
+      { tone: "#8b5cf6", label: "Backend · Infra", count: 2, href: reader("cloud-native") },
     ],
     cta: { label: "进入复习索引", href: reader("review-index") },
-    count: 13,
+    count: 14,
   },
   {
     key: "code",
@@ -66,6 +66,7 @@ const categories = [
 ];
 
 const feedEntries = [
+  { date: "2026-06-25", tag: "Review", tone: "var(--tone-review)", title: "K8s GPU 调度二次开发深度复习：DRA、MIG、Scheduler Framework 与 case 复盘", meta: "42 min · infra", href: reader("k8s-gpu-scheduling") },
   { date: "2026-05-15", tag: "Review", tone: "var(--tone-review)", title: "Claude Code 源码分析与架构设计复盘（含 JSON 输出可靠性 tips）", meta: "38 min · agent architecture", href: reader("claude-code-architecture") },
   { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "Elasticsearch 在 RAG 与 Agent 工程里的落地（含 13 题 Q&A）", meta: "35 min · retrieval", href: reader("elasticsearch-rag-agent") },
   { date: "2026-05-14", tag: "Review", tone: "var(--tone-review)", title: "Chunking 策略：RAG 里最被低估的工程模块（落地深扣）", meta: "32 min · retrieval", href: reader("chunking-strategy") },
@@ -98,6 +99,7 @@ const paletteIndex = [
   { group: "复习",   label: "Vibe Coding 时代的工程师优势",      href: reader("vibe-coding-spec"),  hint: "requirements refund ai-coding", tone: "var(--tone-code)" },
   { group: "复习",   label: "How to Fix Your Context：上下文工程六法", href: reader("context-engineering"), hint: "context engineering langgraph rag pruning memory", tone: "var(--tone-code)" },
   { group: "复习",   label: "后端架构、SSE、K8s GPU、Operator", href: reader("cloud-native"),      hint: "infra",     tone: "var(--tone-review)" },
+  { group: "复习",   label: "K8s GPU 调度二次开发深度复习", href: reader("k8s-gpu-scheduling"), hint: "k8s gpu dra mig scheduler framework device plugin operator", tone: "var(--tone-review)" },
   { group: "复习",   label: "五天复习路线与资料索引",            href: reader("review-index"),      hint: "plan",      tone: "var(--tone-review)" },
   { group: "复习",   label: "资料来源与延伸阅读",                href: reader("references"),        hint: "refs",      tone: "var(--tone-review)" },
   { group: "面试",   label: "ArtArch.AI · AI 智能创作平台 Q&A",  href: reader("interview-artarch"),      hint: "artarch agent langgraph planner",  tone: "var(--tone-interview)" },
