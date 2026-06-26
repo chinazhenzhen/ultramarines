@@ -82,6 +82,24 @@ const articles = {
     meta: ["35 min", "Retrieval", "Elasticsearch"],
   },
 
+  "medical-bot-sft-training": {
+    title: "医疗问答 Bot 小模型 SFT 训练与应用",
+    tag: "Retrieval",
+    path: "./docs/deep-dive/2026-06-26-medical-bot-sft-small-model-training.md",
+    cover: "./assets/medical-rag-safety.png",
+    summary: "按医疗问答场景拆解 intent/risk、query rewrite、reranker、grounded answer、verifier 五类小模型，补齐数据集、训练框架、GPU 配置、指标和上线策略。",
+    meta: ["38 min", "Training", "SFT"],
+  },
+
+  "medical-bot-rl-training": {
+    title: "医疗问答 Bot 小模型 RL / Preference 训练与应用",
+    tag: "Retrieval",
+    path: "./docs/deep-dive/2026-06-26-medical-bot-rl-preference-training.md",
+    cover: "./assets/medical-rag-safety.png",
+    summary: "把 DPO、IPO、KTO、ORPO、PPO、GRPO 放进医疗 RAG 策略层，讲清偏好数据、奖励函数、安全 gate、机器配置和上线回滚。",
+    meta: ["36 min", "Training", "RLHF"],
+  },
+
   "llm-observability": {
     title: "LLM 工程化、评测与可观测",
     tag: "LLM Ops",
@@ -134,6 +152,15 @@ const articles = {
     cover: "./assets/k8s-gpu-scheduling-deep-dive.svg",
     summary: "从 Device Plugin、GPU Operator、MIG、DRA 到 Scheduler Framework 二次开发，串起架构设计、底层代码设计和常见 case 复盘。",
     meta: ["42 min", "Infra", "K8s GPU"],
+  },
+
+  "project-docs-audit": {
+    title: "项目文档审计与深挖路线",
+    tag: "Meta",
+    path: "./docs/deep-dive/2026-06-26-project-docs-audit-and-roadmap.md",
+    cover: "./assets/hero-agent-atlas.png",
+    summary: "盘点 Atlas 文档库的覆盖、前端索引、复习路线和后续最值得补的工程实现细分项。",
+    meta: ["14 min", "Meta", "Roadmap"],
   },
 
   "interview-qa": {
@@ -234,6 +261,87 @@ const articles = {
     summary: "官方文档、论文、源码仓库和工程博客列表。",
     meta: ["10 min", "Sources", "Links"],
   },
+
+  "code-index": {
+    title: "代码练习 · 工程实现复习路线",
+    tag: "Code",
+    path: "./docs/code/README.md",
+    cover: "./assets/dag-engine-agent-best-practices.png",
+    summary: "把算法、系统设计和工程实现拆成可复述、可手写、可追问的肌肉记忆，衔接 Agent、RAG、SSE 和 K8s Operator 专题。",
+    meta: ["12 min", "Code", "Practice"],
+  },
+
+  "code-swap-linked-list-pairs": {
+    title: "链表两两交换",
+    tag: "Code",
+    path: "./docs/code/algorithm/01-swap-linked-list-pairs.md",
+    cover: "./assets/dag-engine-agent-best-practices.png",
+    summary: "用 dummy head 和固定四指针模板稳定处理链表相邻节点交换，覆盖奇偶长度、空链表和指针不丢失边界。",
+    meta: ["12 min", "Algorithm", "Linked List"],
+  },
+
+  "code-sse-event-store": {
+    title: "SSE Event Store 与断线重放",
+    tag: "Code",
+    path: "./docs/code/engineering/01-sse-event-store.md",
+    cover: "./assets/article-cloud-native.png",
+    summary: "实现 replay-then-subscribe 事件存储，讲清 Last-Event-ID、事件持久化、慢客户端和长任务恢复。",
+    meta: ["18 min", "Engineering", "SSE"],
+  },
+
+  "code-pydantic-structured-output": {
+    title: "Pydantic Structured Output 校验与修复重试",
+    tag: "Code",
+    path: "./docs/code/engineering/02-pydantic-structured-output.md",
+    cover: "./assets/cover-toolcall.jpg",
+    summary: "用 Pydantic schema、业务 guard 和 retry-with-feedback 把结构化输出可靠性落到可写代码。",
+    meta: ["18 min", "Engineering", "Schema"],
+  },
+
+  "code-k8s-operator-skeleton": {
+    title: "K8s Operator Reconcile 骨架",
+    tag: "Code",
+    path: "./docs/code/engineering/03-k8s-operator-skeleton.md",
+    cover: "./assets/k8s-gpu-scheduling-deep-dive.svg",
+    summary: "手写 TrainingJob Operator 的 Reconcile、Status、OwnerReference 和 Finalizer 骨架。",
+    meta: ["20 min", "Engineering", "Operator"],
+  },
+
+  "code-scheduler-framework-plugin": {
+    title: "Scheduler Framework GPU 插件骨架",
+    tag: "Code",
+    path: "./docs/code/engineering/04-scheduler-framework-plugin.md",
+    cover: "./assets/k8s-gpu-scheduling-deep-dive.svg",
+    summary: "手写 GPU-aware scheduler plugin 的 PreFilter、Filter、Score 和节点缓存模型。",
+    meta: ["20 min", "Engineering", "Scheduler"],
+  },
+
+  "code-langgraph-custom-node": {
+    title: "LangGraph Custom Node 与 Checkpoint State",
+    tag: "Code",
+    path: "./docs/code/engineering/05-langgraph-custom-node.md",
+    cover: "./assets/article-agent-runtime-v2.png",
+    summary: "把 StateGraph、conditional edge、human review interrupt 和幂等副作用写成可复述的代码骨架。",
+    meta: ["18 min", "Engineering", "LangGraph"],
+  },
+
+  "code-rate-limiter": {
+    title: "限流器：Token Bucket 与 Sliding Window",
+    tag: "Code",
+    path: "./docs/code/system-design/01-rate-limiter.md",
+    cover: "./assets/article-cloud-native.png",
+    summary: "手写 token bucket 和 sliding window，讲清 user/project/model 多维限流与 Redis Lua 原子扣减。",
+    meta: ["18 min", "System Design", "Rate Limit"],
+  },
+
+  "code-rag-hybrid-scorer": {
+    title: "RAG Hybrid Scorer：BM25 + Dense + Rerank",
+    tag: "Code",
+    path: "./docs/code/engineering/06-rag-hybrid-scorer.md",
+    cover: "./assets/article-rag-retrieval.png",
+    summary: "把 RRF、加权融合、reranker 和业务 boost 写成可测试的混合排序代码。",
+    meta: ["20 min", "Engineering", "RAG"],
+  },
 };
 
 /* Drawer groups — each group is a collapsible section in the left rail. */
@@ -260,7 +368,14 @@ const categoryGroups = [
     key: "retrieval",
     title: "Retrieval · RAG",
     tone: "#f59e0b",
-    docs: ["rag-retrieval", "vector-db-reranker", "chunking-strategy", "elasticsearch-rag-agent"],
+    docs: [
+      "rag-retrieval",
+      "vector-db-reranker",
+      "chunking-strategy",
+      "elasticsearch-rag-agent",
+      "medical-bot-sft-training",
+      "medical-bot-rl-training",
+    ],
   },
   {
     key: "llmops",
@@ -301,7 +416,23 @@ const categoryGroups = [
     key: "meta",
     title: "Meta",
     tone: "var(--ink-3)",
-    docs: ["review-index", "references"],
+    docs: ["review-index", "references", "project-docs-audit"],
+  },
+  {
+    key: "code",
+    title: "Code Practice",
+    tone: "var(--tone-code)",
+    docs: [
+      "code-index",
+      "code-swap-linked-list-pairs",
+      "code-sse-event-store",
+      "code-pydantic-structured-output",
+      "code-k8s-operator-skeleton",
+      "code-scheduler-framework-plugin",
+      "code-langgraph-custom-node",
+      "code-rate-limiter",
+      "code-rag-hybrid-scorer",
+    ],
   },
 ];
 
@@ -536,6 +667,9 @@ function normalizeInternalLinks(body) {
     ["docs/review/03-llm-engineering-observability.md", "llm-observability"],
     ["docs/review/04-backend-cloud-native.md", "cloud-native"],
     ["docs/deep-dive/2026-06-25-k8s-gpu-scheduling-development-review.md", "k8s-gpu-scheduling"],
+    ["docs/deep-dive/2026-06-26-project-docs-audit-and-roadmap.md", "project-docs-audit"],
+    ["docs/deep-dive/2026-06-26-medical-bot-sft-small-model-training.md", "medical-bot-sft-training"],
+    ["docs/deep-dive/2026-06-26-medical-bot-rl-preference-training.md", "medical-bot-rl-training"],
     ["docs/review/05-transformer-fundamentals.md", "transformer-fundamentals"],
     ["docs/review/06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["docs/review/07-vector-db-reranker.md", "vector-db-reranker"],
@@ -543,6 +677,15 @@ function normalizeInternalLinks(body) {
     ["docs/review/12-elasticsearch-rag-agent.md", "elasticsearch-rag-agent"],
     ["docs/review/08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["docs/review/references.md", "references"],
+    ["docs/code/README.md", "code-index"],
+    ["docs/code/algorithm/01-swap-linked-list-pairs.md", "code-swap-linked-list-pairs"],
+    ["docs/code/engineering/01-sse-event-store.md", "code-sse-event-store"],
+    ["docs/code/engineering/02-pydantic-structured-output.md", "code-pydantic-structured-output"],
+    ["docs/code/engineering/03-k8s-operator-skeleton.md", "code-k8s-operator-skeleton"],
+    ["docs/code/engineering/04-scheduler-framework-plugin.md", "code-scheduler-framework-plugin"],
+    ["docs/code/engineering/05-langgraph-custom-node.md", "code-langgraph-custom-node"],
+    ["docs/code/system-design/01-rate-limiter.md", "code-rate-limiter"],
+    ["docs/code/engineering/06-rag-hybrid-scorer.md", "code-rag-hybrid-scorer"],
     ["interview-qa.md", "interview-qa"],
     ["artarch-ai.md", "interview-artarch"],
     ["baidu-health.md", "interview-baidu-health"],
@@ -562,6 +705,9 @@ function normalizeInternalLinks(body) {
     ["03-llm-engineering-observability.md", "llm-observability"],
     ["04-backend-cloud-native.md", "cloud-native"],
     ["2026-06-25-k8s-gpu-scheduling-development-review.md", "k8s-gpu-scheduling"],
+    ["2026-06-26-project-docs-audit-and-roadmap.md", "project-docs-audit"],
+    ["2026-06-26-medical-bot-sft-small-model-training.md", "medical-bot-sft-training"],
+    ["2026-06-26-medical-bot-rl-preference-training.md", "medical-bot-rl-training"],
     ["05-transformer-fundamentals.md", "transformer-fundamentals"],
     ["06-planner-deterministic-assembly.md", "planner-deterministic"],
     ["07-vector-db-reranker.md", "vector-db-reranker"],
@@ -569,6 +715,15 @@ function normalizeInternalLinks(body) {
     ["12-elasticsearch-rag-agent.md", "elasticsearch-rag-agent"],
     ["08-tool-calling-mcp.md", "tool-calling-mcp"],
     ["references.md", "references"],
+    ["../code/README.md", "code-index"],
+    ["./algorithm/01-swap-linked-list-pairs.md", "code-swap-linked-list-pairs"],
+    ["./engineering/01-sse-event-store.md", "code-sse-event-store"],
+    ["./engineering/02-pydantic-structured-output.md", "code-pydantic-structured-output"],
+    ["./engineering/03-k8s-operator-skeleton.md", "code-k8s-operator-skeleton"],
+    ["./engineering/04-scheduler-framework-plugin.md", "code-scheduler-framework-plugin"],
+    ["./engineering/05-langgraph-custom-node.md", "code-langgraph-custom-node"],
+    ["./system-design/01-rate-limiter.md", "code-rate-limiter"],
+    ["./engineering/06-rag-hybrid-scorer.md", "code-rag-hybrid-scorer"],
   ]);
 
   body.querySelectorAll("a[href]").forEach((link) => {

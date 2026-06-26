@@ -1344,5 +1344,7 @@ trace.update(prompt=prompt_obj)
 - [RAG 混合检索与医疗问答](../review/02-rag-retrieval.md)
 - [Vector DB 选型 + Reranker 深入](../review/07-vector-db-reranker.md)
 - [Chunking 策略：RAG 工程落地](../review/11-chunking-strategy.md)
+- [医疗问答 Bot 小模型 SFT 训练与应用](../deep-dive/2026-06-26-medical-bot-sft-small-model-training.md)
+- [医疗问答 Bot 小模型 RL / Preference 训练与应用](../deep-dive/2026-06-26-medical-bot-rl-preference-training.md)
 - [LangGraph 上下文工程实战](./notes/langgraph-context-engineering.md)
 - [ArtArch.AI 面试 Q&A](./artarch-ai.md)（同样按 "🛠 具体技术方案" 风格补全的姊妹篇）

@@ -696,7 +696,8 @@ async def rag_pipeline(query: str, user_ctx: dict) -> dict:
 | 引用溯源 / 医学幻觉降低 | §5 Context Builder | [Chunking 策略](./11-chunking-strategy.md) |
 | Chunk 结构化 / Contextual Retrieval | §5.1 | [Chunking 策略](./11-chunking-strategy.md) |
 | 多轮意图识别 92%+ | §6 策略设计 | [AI Agent 与 LangGraph 工程化](./01-ai-agent-langgraph.md) |
-| 高风险拦截召回率 98%+ | §6 安全策略 | — |
+| 高风险拦截召回率 98%+ | §6 安全策略 | [医疗问答 Bot 小模型 RL / Preference 训练与应用](../deep-dive/2026-06-26-medical-bot-rl-preference-training.md) |
+| 小模型 SFT / Reranker / Query Rewrite | §3 - §6 | [医疗问答 Bot 小模型 SFT 训练与应用](../deep-dive/2026-06-26-medical-bot-sft-small-model-training.md) |
 | Elasticsearch + Faiss 自建检索 | §8 索引速记 | [Vector DB 选型 + Reranker 深入](./07-vector-db-reranker.md) |
 
 ## 11. 官方与高质量资料
@@ -709,4 +710,4 @@ async def rag_pipeline(query: str, user_ctx: dict) -> dict:
 - Qdrant Indexing：<https://qdrant.tech/documentation/concepts/indexing/>
 - Qdrant Search：<https://qdrant.tech/documentation/search/search/>
 - Anthropic Contextual Retrieval：<https://www.anthropic.com/news/contextual-retrieval>
-- 本站姊妹篇：[Chunking 策略](./11-chunking-strategy.md)、[Vector DB + Reranker 深入](./07-vector-db-reranker.md)
+- 本站姊妹篇：[Chunking 策略](./11-chunking-strategy.md)、[Vector DB + Reranker 深入](./07-vector-db-reranker.md)、[医疗问答 Bot 小模型 SFT 训练与应用](../deep-dive/2026-06-26-medical-bot-sft-small-model-training.md)、[医疗问答 Bot 小模型 RL / Preference 训练与应用](../deep-dive/2026-06-26-medical-bot-rl-preference-training.md)

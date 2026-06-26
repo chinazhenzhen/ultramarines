@@ -98,6 +98,65 @@
 - Qdrant Search：<https://qdrant.tech/documentation/search/search/>  
   看 filter、hnsw_ef、score_threshold、payload/vector 返回。
 
+## Medical Bot SFT / RL Training
+
+- TRL SFTTrainer：<https://huggingface.co/docs/trl/sft_trainer>
+  看 instruction tuning 数据格式、chat template、assistant-only loss 和训练配置。
+
+- TRL DPOTrainer：<https://huggingface.co/docs/trl/main/en/dpo_trainer>
+  看 DPO / IPO 等偏好优化 loss、chosen/rejected 数据格式和 beta 参数。
+
+- TRL KTOTrainer：<https://huggingface.co/docs/trl/main/en/kto_trainer>
+  看只有 desirable / undesirable 单样本标签时如何做偏好优化。
+
+- TRL ORPOTrainer：<https://huggingface.co/docs/trl/main/en/orpo_trainer>
+  看 reference-free 的 SFT + preference 合并路线。
+
+- TRL PPOTrainer：<https://huggingface.co/docs/trl/main/en/ppo_trainer>
+  看传统 RLHF 的 policy / reward / value 训练形态。
+
+- TRL GRPOTrainer：<https://huggingface.co/docs/trl/main/en/grpo_trainer>
+  看 group relative policy optimization，适合 citation/schema/refusal 等可验证 reward。
+
+- PEFT：<https://huggingface.co/docs/peft/en/index>
+  看 LoRA / QLoRA adapter 的训练和合并方式。
+
+- LLaMA-Factory：<https://github.com/hiyouga/LLaMA-Factory>
+  看 SFT、reward modeling、PPO、DPO、KTO、ORPO 等训练任务的配置化实践。
+
+- OpenRLHF：<https://openrlhf.readthedocs.io/en/latest/>
+  看 Ray + vLLM + DeepSpeed 的大规模 RLHF / PPO / GRPO 工程化。
+
+- veRL：<https://verl.readthedocs.io/en/latest/>
+  看复杂 RL 后训练、多 rollout 后端和 FSDP/Megatron/vLLM/SGLang 的组合。
+
+- vLLM：<https://docs.vllm.ai/en/latest/>
+  看小模型 serving、LoRA adapter、prefix caching 和高吞吐推理。
+
+- DeepSpeed ZeRO：<https://www.deepspeed.ai/tutorials/zero/>
+  看 ZeRO-2/3 如何做优化器、梯度和参数分片。
+
+- Qwen3：<https://qwenlm.github.io/blog/qwen3/>
+  看 0.6B / 1.7B / 4B / 8B 等小模型尺寸和部署建议。
+
+- Qwen3 Embedding：<https://arxiv.org/abs/2506.05176>
+  看 Qwen3 embedding / reranker 系列的多语言检索训练背景。
+
+- Huatuo-26M：<https://arxiv.org/abs/2305.01526>
+  中文医疗问答/指令数据，可用于冷启动和风格预热。
+
+- CMExam：<https://arxiv.org/abs/2306.03030>
+  中文医学考试 benchmark，可做医学知识 sanity check。
+
+- CMB：<https://arxiv.org/abs/2308.08833>
+  中文医学综合 benchmark，适合作为离线评测补充。
+
+- Zhongjing / Chinese medical RLHF：<https://arxiv.org/abs/2308.03549>
+  看中文医疗多轮对话和 RLHF 思路。
+
+- WHO guidance on large multi-modal models in health：<https://www.who.int/publications/i/item/9789240084759>
+  看医疗 AI 使用中的风险、治理和人类监督要求。
+
 ## Eval / Observability
 
 - Anthropic Demystifying Evals for AI Agents：<https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>  
@@ -137,6 +196,32 @@
 
 - Kubernetes Operator Pattern：<https://kubernetes.io/docs/concepts/extend-kubernetes/operator>  
   看 operator 如何把领域运维知识编码成控制循环。
+
+- Kubernetes Scheduling Framework：<https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/>
+  看 QueueSort、PreFilter、Filter、Score、Reserve、Permit、Bind 等 scheduler 扩展点。
+
+- Kubernetes Dynamic Resource Allocation：<https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/>
+  看 DeviceClass、ResourceClaim、ResourceClaimTemplate、ResourceSlice 的新资源分配模型。
+
+- NVIDIA GPU Operator：<https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html>
+  看 GPU driver、container toolkit、device plugin、GFD、DCGM、MIG Manager 的统一生命周期管理。
+
+- NVIDIA k8s-device-plugin：<https://github.com/NVIDIA/k8s-device-plugin>
+  看 MIG strategy、time-slicing、MPS、CDI 和 `nvidia.com/gpu` 资源暴露方式。
+
+## Code Practice / Engineering Skeletons
+
+- Python dataclasses：<https://docs.python.org/3/library/dataclasses.html>
+  适合写算法题和轻量工程题的结构化数据模型。
+
+- Pydantic Models：<https://docs.pydantic.dev/latest/concepts/models/>
+  看 schema、validation、model_dump、错误处理，适合 structured output 代码题。
+
+- Kubernetes Controller Runtime：<https://book.kubebuilder.io/cronjob-tutorial/controller-implementation>
+  看 Reconcile、Status、Finalizer、OwnerReference 的 controller 骨架。
+
+- Kubernetes Client Python：<https://github.com/kubernetes-client/python>
+  用来快速写 K8s API 查询、watch、调试脚本。
 
 ## GitHub Pages / Actions
 

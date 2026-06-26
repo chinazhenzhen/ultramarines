@@ -16,22 +16,34 @@
 2. [RAG、混合检索与医疗问答](./02-rag-retrieval.md)  
    对应百度健康助手。重点背熟：BM25 vs Dense、reranker、引用溯源、医疗安全风控、RAG 评测。
 
-3. [LLM 工程化、工具调用、评测与可观测](./03-llm-engineering-observability.md)  
+3. [医疗问答 Bot 小模型 SFT 训练与应用](../deep-dive/2026-06-26-medical-bot-sft-small-model-training.md)
+   对应百度健康助手里“小模型怎么训”。重点背熟：intent/risk、query rewrite、reranker、grounded answer、verifier、LoRA/QLoRA、训练机器配置和上线指标。
+
+4. [医疗问答 Bot 小模型 RL / Preference 训练与应用](../deep-dive/2026-06-26-medical-bot-rl-preference-training.md)
+   对应医疗安全策略调优。重点背熟：DPO/KTO/ORPO/PPO/GRPO 怎么选、偏好数据 schema、奖励函数、citation faithfulness、安全 gate 和回滚条件。
+
+5. [LLM 工程化、工具调用、评测与可观测](./03-llm-engineering-observability.md)
    连接 Agent 与后端平台。重点背熟：structured output、tool calling、安全边界、trace、eval、成本治理。
 
-4. [Vibe Coding 时代的工程师优势](./09-vibe-coding-requirement-spec.md)
+6. [Vibe Coding 时代的工程师优势](./09-vibe-coding-requirement-spec.md)
    对应 AI 辅助编程面试追问。重点背熟：问题定义、上下文构建、业务语义验证、Token 成本控制，以及“退款功能”如何拆成可执行规格。
 
-5. [Claude Code 源码分析与架构设计复盘](./13-claude-code-architecture.md)
+7. [Claude Code 源码分析与架构设计复盘](./13-claude-code-architecture.md)
    对应 AI Coding Agent 架构设计追问。重点背熟：agent loop、权限系统、hooks、subagent、context compaction、JSON Schema 结构化输出与验证链路。
 
-6. [How to Fix Your Context：上下文工程六法](./10-context-engineering-langgraph.md)
+8. [How to Fix Your Context：上下文工程六法](./10-context-engineering-langgraph.md)
    对应上下文工程与 LangGraph 落地。重点背熟：RAG、Tool Loadout、Context Quarantine、Pruning、Summarization、Offloading，以及它们在 LangGraph 里如何变成节点。
 
-7. [后端架构、SSE、Kubernetes GPU 与 Operator](./04-backend-cloud-native.md)
+9. [后端架构、SSE、Kubernetes GPU 与 Operator](./04-backend-cloud-native.md)
    对应你的后端和平台经验。重点背熟：SSE vs WebSocket、FastAPI streaming、K8s Device Plugin、CRD/Operator。
 
-8. [资料来源与延伸阅读](./references.md)
+10. [K8s GPU 调度二次开发深度复习](../deep-dive/2026-06-25-k8s-gpu-scheduling-development-review.md)
+   对应云原生 GPU 平台深挖。重点背熟：Device Plugin、GPU Operator、MIG、DRA、Scheduler Framework、常见 case 复盘。
+
+11. [代码练习 · 工程实现复习路线](../code/README.md)
+   对应手写代码和工程实现追问。重点按 SSE event store、Pydantic schema、LangGraph node、K8s Operator skeleton 补肌肉记忆。
+
+12. [资料来源与延伸阅读](./references.md)
    面试前按主题快速打开官方文档、论文、源码和行业工程博客。
 
 ## 技术栈到面试能力映射
@@ -46,16 +58,21 @@
 | SSE / Responses-style API | 是否懂流式体验和工程细节 | first token、事件协议、断线恢复、代理缓冲 |
 | RAG / BM25 + Dense + Rerank | 是否懂搜索质量 | 混合召回、重排、引用溯源、评测分桶 |
 | 医疗安全兜底 | 是否懂高风险业务边界 | 风险识别、拒答、转人工、召回优先 |
+| 医疗小模型 SFT | 是否能把项目讲到训练层 | 数据集、LoRA/QLoRA、reranker、query rewrite、线上 serving |
+| 医疗 RLHF / Preference | 是否懂安全策略优化 | DPO/KTO/ORPO/PPO/GRPO、奖励函数、citation faithfulness、fail-closed gate |
 | K8s / GPU / Operator | 是否有平台底座能力 | Device Plugin、CRD、控制循环、多租户治理 |
+| K8s GPU 二次开发 | 是否能设计调度扩展 | Scheduler Framework、DRA、MIG、ResourceClaim、故障复盘 |
 | Trace / Eval / Badcase | 是否能持续迭代 | 离线/在线评测、回放、成本和质量闭环 |
+| 代码练习 | 是否能现场实现关键模块 | 数据结构、限流、事件重放、schema 校验、Operator skeleton |
 
 ## 面试复习节奏
 
 - **第 1 天**：只练 ArtArch.AI Agent Runtime，目标是 15 分钟讲清楚架构。
 - **第 2 天**：练 RAG 与医疗安全，目标是能拆 retrieval / generation / safety / eval。
-- **第 3 天**：练 LLM 工程化，目标是 structured output、tool calling、trace、eval 都能落到工程细节。
-- **第 4 天**：练 K8s/GPU/后端系统设计，目标是证明你不是只懂应用层。
-- **第 5 天**：模拟面试，用 [interview-qa.md](../interview-qa.md) 逐题回答并录音复盘。
+- **第 3 天**：练医疗小模型训练，目标是能讲清 SFT、DPO、reward、GPU 配置、数据 schema 和上线 gate。
+- **第 4 天**：练 LLM 工程化，目标是 structured output、tool calling、trace、eval 都能落到工程细节。
+- **第 5 天**：练 K8s/GPU/后端系统设计，目标是证明你不是只懂应用层。
+- **第 6 天**：模拟面试，用 [interview-qa.md](../interview-qa.md) 逐题回答并录音复盘。
 
 ## 一句话心法
 
