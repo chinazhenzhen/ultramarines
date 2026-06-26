@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Kubernetes GPU scheduling and extension architecture</title>
+  <desc id="desc">Layered architecture diagram for cloud native Kubernetes GPU scheduling, including platform API, scheduler extension, Kubernetes control plane, node device plugin, NVIDIA runtime, observability, and DRA resources.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="0.55" stop-color="#eef6ff"/>
+      <stop offset="1" stop-color="#f7fee7"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2563eb"/>
+    </marker>
+    <style>
+      .title { font: 700 54px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; }
+      .layer { font: 700 21px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #334155; letter-spacing: .4px; }
+      .box-title { font: 700 25px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; }
+      .box-text { font: 500 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; }
+      .small { font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #64748b; }
+      .box { fill: #ffffff; stroke: #dbeafe; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .node { fill: #f0fdf4; stroke: #86efac; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .warn { fill: #fff7ed; stroke: #fed7aa; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .dra { fill: #f5f3ff; stroke: #c4b5fd; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .line { stroke: #2563eb; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .line-muted { stroke: #94a3b8; stroke-width: 3; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 9; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <text x="80" y="92" class="title">K8s GPU Scheduling 二次开发复习地图</text>
+  <text x="82" y="136" class="subtitle">从原生扩展资源，到 Scheduler Framework、Device Plugin、DRA 与 NVIDIA GPU Operator</text>
+
+  <text x="84" y="204" class="layer">业务平台层</text>
+  <rect x="80" y="225" width="310" height="150" class="box"/>
+  <text x="112" y="275" class="box-title">Platform API</text>
+  <text x="112" y="314" class="box-text">配额 / 队列 / 优先级</text>
+  <text x="112" y="344" class="box-text">TrainingJob / InferenceJob</text>
+
+  <rect x="455" y="225" width="310" height="150" class="box"/>
+  <text x="487" y="275" class="box-title">Job Builder</text>
+  <text x="487" y="314" class="box-text">PodSpec / ResourceClaim</text>
+  <text x="487" y="344" class="box-text">镜像、卷、亲和性</text>
+
+  <text x="84" y="438" class="layer">Kubernetes 控制面</text>
+  <rect x="80" y="460" width="310" height="150" class="box"/>
+  <text x="112" y="510" class="box-title">API Server</text>
+  <text x="112" y="549" class="box-text">Pod / Node / CRD</text>
+  <text x="112" y="579" class="box-text">ResourceClaim / Slice</text>
+
+  <rect x="455" y="460" width="310" height="150" class="dra"/>
+  <text x="487" y="510" class="box-title">Scheduler 插件</text>
+  <text x="487" y="549" class="box-text">Filter / Score / Reserve</text>
+  <text x="487" y="579" class="box-text">拓扑、配额、碎片</text>
+
+  <rect x="830" y="460" width="310" height="150" class="dra"/>
+  <text x="862" y="510" class="box-title">DRA Driver</text>
+  <text x="862" y="549" class="box-text">DeviceClass / Claim</text>
+  <text x="862" y="579" class="box-text">ResourceSlice / CDI</text>
+
+  <text x="84" y="672" class="layer">GPU 节点层</text>
+  <rect x="80" y="694" width="310" height="150" class="node"/>
+  <text x="112" y="744" class="box-title">kubelet</text>
+  <text x="112" y="783" class="box-text">Device Manager</text>
+  <text x="112" y="813" class="box-text">Allocate -> CRI</text>
+
+  <rect x="455" y="694" width="310" height="150" class="node"/>
+  <text x="487" y="744" class="box-title">NVIDIA 插件栈</text>
+  <text x="487" y="783" class="box-text">Device Plugin / GFD</text>
+  <text x="487" y="813" class="box-text">MIG / time-slicing / MPS</text>
+
+  <rect x="830" y="694" width="310" height="150" class="node"/>
+  <text x="862" y="744" class="box-title">Runtime</text>
+  <text x="862" y="783" class="box-text">containerd / CRI-O</text>
+  <text x="862" y="813" class="box-text">NVIDIA Toolkit / CDI</text>
+
+  <text x="1230" y="204" class="layer">可观测与复盘</text>
+  <rect x="1210" y="225" width="310" height="150" class="warn"/>
+  <text x="1242" y="275" class="box-title">DCGM Exporter</text>
+  <text x="1242" y="314" class="box-text">XID / 显存 / 利用率</text>
+  <text x="1242" y="344" class="box-text">Prometheus / Grafana</text>
+
+  <rect x="1210" y="460" width="310" height="150" class="warn"/>
+  <text x="1242" y="510" class="box-title">Case 复盘</text>
+  <text x="1242" y="549" class="box-text">Pending / 不足 / 碎片</text>
+  <text x="1242" y="579" class="box-text">MIG / 拓扑 / 驱动</text>
+
+  <path d="M390 300 C415 300 430 300 455 300" class="line"/>
+  <path d="M610 375 C610 420 610 430 610 460" class="line"/>
+  <path d="M455 535 C430 535 415 535 390 535" class="line"/>
+  <path d="M765 535 C790 535 805 535 830 535" class="line"/>
+  <path d="M610 610 C610 656 610 664 610 694" class="line"/>
+  <path d="M390 769 C415 769 430 769 455 769" class="line"/>
+  <path d="M765 769 C790 769 805 769 830 769" class="line"/>
+  <path d="M1140 535 C1170 535 1185 535 1210 535" class="line-muted"/>
+  <path d="M1140 769 C1190 690 1210 650 1365 610" class="line-muted"/>
+  <path d="M1140 769 C1210 760 1240 680 1365 375" class="line-muted"/>
+
+  <rect x="80" y="858" width="1440" height="1.5" fill="#cbd5e1"/>
+  <text x="80" y="884" class="small">核心记忆：Kubernetes 原生只调度“资源声明”，GPU 设备语义、共享、MIG、拓扑、健康和成本治理通常要靠插件、DRA 驱动与平台控制面补齐。</text>
+</svg>
